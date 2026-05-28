@@ -29,6 +29,15 @@ DEVELOPMENT_UNIVERSE = (
 )
 
 
+def _development_universe(category: str | None) -> list[str]:
+    if not category:
+        return list(DEVELOPMENT_UNIVERSE)
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from src.categories import get_symbols
+
+    return list(get_symbols(category))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="External holdout coin LOSO evaluation")
     parser.add_argument(
@@ -43,10 +52,15 @@ def main() -> None:
     parser.add_argument("--model", default="mlp")
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Train on 16-coin category universe instead of legacy meme8.",
+    )
     args = parser.parse_args()
 
     holdouts = [s.strip().upper() for s in args.holdout_symbols.split(",") if s.strip()]
-    dev = list(DEVELOPMENT_UNIVERSE)
+    dev = _development_universe(args.category)
     tag = "holdout_confirm_k12"
 
     for held in holdouts:
@@ -75,21 +89,27 @@ def main() -> None:
             "all" if not args.skip_download else "train",
             "--model",
             args.model,
-            "--symbols",
-            universe,
-            "--held-out",
-            held,
-            "--window-size",
-            str(args.window),
-            "--label-k",
-            str(args.label_k),
-            "--split-mode",
-            args.split_mode,
-            "--ablation-tag",
-            tag,
-            "--epochs",
-            str(args.epochs),
         ]
+        if args.category:
+            cmd.extend(["--category", args.category])
+        else:
+            cmd.extend(["--symbols", universe])
+        cmd.extend(
+            [
+                "--held-out",
+                held,
+                "--window-size",
+                str(args.window),
+                "--label-k",
+                str(args.label_k),
+                "--split-mode",
+                args.split_mode,
+                "--ablation-tag",
+                tag,
+                "--epochs",
+                str(args.epochs),
+            ]
+        )
         print(" ".join(cmd))
         if args.dry_run:
             continue
@@ -97,6 +117,7 @@ def main() -> None:
 
     summary = {
         "holdout_symbols": holdouts,
+        "category": args.category,
         "development_universe": dev,
         "window": args.window,
         "label_k": args.label_k,

@@ -1,0 +1,137 @@
+# Five research categories × 16 Binance spot USDT pairs each.
+# Tickers mapped from advice/ClassificationSuggestion.md; unavailable pairs
+# use documented substitutes (see notes per category).
+# Run: python3 scripts/validate_binance_symbols.py
+
+categories:
+  bluechip:
+    name_zh: 蓝筹 Meme
+    focus: market_beta
+    notes: >
+      PENGU/PNUT on Binance; SPX/MOG/POPCAT/FARTCOIN/BRETT unavailable —
+      filled with liquid meme alts (MEME, PEOPLE, NEIRO, MUBARAK, ACT).
+    symbols:
+      - DOGEUSDT
+      - SHIBUSDT
+      - PEPEUSDT
+      - BONKUSDT
+      - WIFUSDT
+      - FLOKIUSDT
+      - TRUMPUSDT
+      - PENGUUSDT
+      - PNUTUSDT
+      - TURBOUSDT
+      - 1MBABYDOGEUSDT
+      - MEMEUSDT
+      - PEOPLEUSDT
+      - NEIROUSDT
+      - MUBARAKUSDT
+      - ACTUSDT
+
+  midcap:
+    name_zh: 中盘趋势 Meme
+    focus: momentum
+    notes: >
+      GIGA/GOAT/SLERF/MEW/CHILLGUY/MICHI/NPC/CAT/ANDY/WOJAK/LADYS unavailable;
+      BOOK OF MEME -> MEMEUSDT; supplemented with high-turnover Binance memes.
+    symbols:
+      - BOMEUSDT
+      - NEIROUSDT
+      - ACTUSDT
+      - MEMEUSDT
+      - DOGSUSDT
+      - NOTUSDT
+      - HMSTRUSDT
+      - CATIUSDT
+      - 1000SATSUSDT
+      - 1000CATUSDT
+      - 1000CHEEMSUSDT
+      - PNUTUSDT
+      - MUBARAKUSDT
+      - PEOPLEUSDT
+      - TURBOUSDT
+      - BABYUSDT
+
+  solana_fast:
+    name_zh: Solana 高频 Meme
+    focus: high_frequency
+    notes: >
+      Solana-native meme on Binance spot; overlaps with bluechip/midcap by design.
+      MANEKI/SCF/FWOG/MOTHER/SLERF/GOAT/GIGA/CHILLGUY/FARTCOIN unavailable.
+    symbols:
+      - BONKUSDT
+      - WIFUSDT
+      - PNUTUSDT
+      - ACTUSDT
+      - BOMEUSDT
+      - NEIROUSDT
+      - 1000SATSUSDT
+      - DOGSUSDT
+      - TURBOUSDT
+      - PENGUUSDT
+      - TRUMPUSDT
+      - MUBARAKUSDT
+      - 1000CATUSDT
+      - 1000CHEEMSUSDT
+      - HMSTRUSDT
+      - NOTUSDT
+
+  base_eco:
+    name_zh: 新生态 Meme
+    focus: narrative_diffusion
+    notes: >
+      Base-chain tickers (BRETT/TOSHI/DEGEN/...) mostly absent on Binance spot;
+      proxy universe = recent L2/Launch narrative alts with USDT pairs.
+    symbols:
+      - IOUSDT
+      - PORTALUSDT
+      - PIXELUSDT
+      - ACEUSDT
+      - AEVOUSDT
+      - ETHFIUSDT
+      - ALTUSDT
+      - MANTAUSDT
+      - BBUSDT
+      - ZKUSDT
+      - ZROUSDT
+      - REZUSDT
+      - LISTAUSDT
+      - EIGENUSDT
+      - NFPUSDT
+      - XAIUSDT
+
+  micro_cap:
+    name_zh: 超小盘 Meme
+    focus: anomaly_detection
+    notes: >
+      Binance-curated micro/high-vol meme & launch coins (Pump-style proxies).
+    symbols:
+      - BOMEUSDT
+      - 1000SATSUSDT
+      - NEIROUSDT
+      - ACTUSDT
+      - PEOPLEUSDT
+      - DOGSUSDT
+      - NOTUSDT
+      - HMSTRUSDT
+      - CATIUSDT
+      - 1000CATUSDT
+      - 1000CHEEMSUSDT
+      - PNUTUSDT
+      - MUBARAKUSDT
+      - BABYUSDT
+      - 1MBABYDOGEUSDT
+      - TURBOUSDT
+
+legacy:
+  meme8:
+    name_zh: Legacy 8-coin universe
+    symbols:
+      - DOGEUSDT
+      - SHIBUSDT
+      - PEPEUSDT
+      - WIFUSDT
+      - BONKUSDT
+      - FLOKIUSDT
+      - BOMEUSDT
+      - 1000SATSUSDT

@@ -8,4 +8,4 @@ outputs/models/
 outputs/metrics/
 outputs/figures/
 advice/
-paper/
+config/categories.resolved.yaml

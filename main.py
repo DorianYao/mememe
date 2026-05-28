@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from src.categories import CATEGORY_IDS, apply_category, get_legacy_meme8_symbols, list_categories
 from src.config import ExperimentConfig, config_from_yaml
 from src.data import download_multi, download_ohlcv, load_ohlcv
 from src.evaluate import (
@@ -57,6 +58,24 @@ def parse_args() -> argparse.Namespace:
         "--symbols",
         default=None,
         help="Comma-separated override of the meme universe (pooled / loso).",
+    )
+    parser.add_argument(
+        "--category",
+        default=None,
+        help=(
+            "Research category id (bluechip, midcap, solana_fast, base_eco, micro_cap, "
+            "or meme8 for legacy 8-coin universe)."
+        ),
+    )
+    parser.add_argument(
+        "--all-categories",
+        action="store_true",
+        help="Run loso mode sequentially for all five research categories.",
+    )
+    parser.add_argument(
+        "--categories",
+        default=None,
+        help="Comma-separated subset of categories (with --all-categories or loso).",
     )
     parser.add_argument(
         "--held-out",
@@ -124,6 +143,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--device", default=None)
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--skip-plots",
+        action="store_true",
+        help="Skip matplotlib figures (faster for hyperparameter scans).",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip LOSO held-out rounds whose metrics JSON already exists.",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Scan mode: --skip-plots, skip prediction CSVs, batch_size=1024 if unset.",
+    )
+    parser.add_argument(
+        "--dataloader-workers",
+        type=int,
+        default=None,
+        help="DataLoader worker processes (default from config, usually 4).",
+    )
     return parser.parse_args()
 
 
@@ -146,15 +186,30 @@ def apply_overrides(config: ExperimentConfig, args: argparse.Namespace) -> Exper
         "time_val_fraction",
         "label_volatility_window",
         "volatility_window",
+        "dataloader_workers",
     ]
     for key in direct_keys:
         value = getattr(args, key, None)
         if value is not None:
             overrides[key] = value
+    if getattr(args, "fast", False):
+        if getattr(args, "batch_size", None) is None:
+            overrides["batch_size"] = 1024
+        if getattr(args, "dataloader_workers", None) is None:
+            overrides["dataloader_workers"] = 4
     if args.symbols:
         overrides["symbols"] = tuple(
             s.strip().upper() for s in args.symbols.split(",") if s.strip()
         )
+    if args.category:
+        cat = args.category.strip().lower()
+        if cat == "meme8":
+            overrides["symbols"] = get_legacy_meme8_symbols()
+            overrides["category_id"] = None
+        else:
+            tmp = apply_category(config, cat)
+            overrides["symbols"] = tmp.symbols
+            overrides["category_id"] = tmp.category_id
     if args.ablation_tag is not None:
         overrides["ablation_tag"] = args.ablation_tag
 
@@ -265,14 +320,33 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
 
     # 关键优化：一次性把所有币的窗口建好，多轮 LOSO 共用。
     per_symbol_cache: dict | None = None
-    if args.stage in {"features", "all"}:
+    need_feature_build = _loso_need_feature_build(args, config, held_outs)
+    if need_feature_build:
         print("[loso] building per-symbol window cache (one-time)...")
         per_symbol_cache = build_per_symbol(list(config.symbols), config)
+
+    skip_artifacts = getattr(args, "fast", False)
+    skip_plots = getattr(args, "skip_plots", False) or getattr(args, "fast", False)
 
     for held in held_outs:
         print(f"\n========== LOSO  held-out: {held} ==========")
         path = loso_processed_path(config, held)
-        if args.stage in {"features", "all"} or not path.exists():
+        tag_base = config.universe_tag("loso", held)
+
+        if getattr(args, "skip_existing", False) and args.stage in {"train", "evaluate", "all"}:
+            metrics_path = config.metrics_dir / f"{tag_base}_mlp_metrics.json"
+            if metrics_path.exists() and path.exists():
+                print(f"[skip-existing] {held} metrics already at {metrics_path.name}")
+                with metrics_path.open("r", encoding="utf-8") as fh:
+                    rounds[held] = {"mlp": json.load(fh)}
+                continue
+
+        if path.exists() and not args.refresh:
+            splits = load_processed(path)
+        elif args.stage in {"features", "all", "train", "evaluate"} or not path.exists():
+            if per_symbol_cache is None:
+                print("[loso] building per-symbol window cache (one-time)...")
+                per_symbol_cache = build_per_symbol(list(config.symbols), config)
             splits, _ = build_and_save_loso(
                 config, held, per_symbol_cache=per_symbol_cache
             )
@@ -284,14 +358,27 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
             baseline = majority_baseline(splits)
             baseline_per_round[held] = baseline
 
-            tag_base = config.universe_tag("loso", held)
-
             def run_tag(model_name: str, _tag_base=tag_base) -> str:
                 return f"{_tag_base}_{model_name}"
 
-            metrics_per_model = _train_eval_models(args, splits, config, run_tag)
+            metrics_per_model = _train_eval_models(
+                args,
+                splits,
+                config,
+                run_tag,
+                skip_plots=skip_plots,
+                skip_artifacts=skip_artifacts,
+            )
             rounds[held] = metrics_per_model
-            _emit_comparison(metrics_per_model, baseline, config, tag_base, summary, key=held)
+            _emit_comparison(
+                metrics_per_model,
+                baseline,
+                config,
+                tag_base,
+                summary,
+                key=held,
+                skip_plots=skip_plots,
+            )
 
     summary["features"] = features_summary
 
@@ -300,11 +387,29 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
         summary["loso_aggregate"] = aggregation["mean"]
         summary["loso_summary_path"] = aggregation["summary_path"]
 
-        for metric in ["test_roc_auc", "test_macro_f1", "test_mcc"]:
-            plot_path = plot_loso_summary(rounds, baseline_per_round, config, metric=metric)
-            summary.setdefault("loso_figures", {})[metric] = str(plot_path)
+        if not skip_plots:
+            for metric in ["test_roc_auc", "test_macro_f1", "test_mcc"]:
+                plot_path = plot_loso_summary(
+                    rounds, baseline_per_round, config, metric=metric
+                )
+                summary.setdefault("loso_figures", {})[metric] = str(plot_path)
 
     return summary
+
+
+def _loso_need_feature_build(
+    args: argparse.Namespace,
+    config: ExperimentConfig,
+    held_outs: list[str],
+) -> bool:
+    """True when any held-out round still needs fresh feature NPZ files."""
+    if args.stage == "features":
+        return True
+    if args.stage not in {"all", "train"}:
+        return False
+    if args.refresh:
+        return True
+    return any(not loso_processed_path(config, held).exists() for held in held_outs)
 
 
 def _train_eval_models(
@@ -312,6 +417,9 @@ def _train_eval_models(
     splits,
     config: ExperimentConfig,
     run_tag_fn,
+    *,
+    skip_plots: bool = False,
+    skip_artifacts: bool = False,
 ) -> dict[str, dict[str, object]]:
     from src.tabular import (
         load_xgboost_model,
@@ -354,14 +462,22 @@ def _train_eval_models(
                     verbose=not args.quiet,
                 )
                 save_model(model, model_name, history, train_summary, config, run_tag=tag)
-                plot_training_history(history, model_name, config, run_tag=tag)
+                if not skip_plots:
+                    plot_training_history(history, model_name, config, run_tag=tag)
             else:
                 model = _load_model(model_name, config, tag, device=args.device)
 
             metrics = evaluate_model(
-                model, splits, model_name, config, device=args.device, run_tag=tag
+                model,
+                splits,
+                model_name,
+                config,
+                device=args.device,
+                run_tag=tag,
+                skip_artifacts=skip_artifacts,
             )
-        plot_confusion_matrix(metrics["confusion_matrix"], model_name, config, run_tag=tag)
+        if not skip_plots:
+            plot_confusion_matrix(metrics["confusion_matrix"], model_name, config, run_tag=tag)
         metrics_per_model[model_name] = metrics
     return metrics_per_model
 
@@ -373,17 +489,18 @@ def _emit_comparison(
     tag: str,
     summary: dict[str, object],
     key: str | None = None,
+    *,
+    skip_plots: bool = False,
 ) -> None:
     if not metrics_per_model:
         return
     comparison_csv = save_comparison(metrics_per_model, baseline, config, tag)
-    comparison_plot = plot_model_comparison(metrics_per_model, baseline, config, tag)
-    roc_plot = plot_roc_curves(metrics_per_model, config, tag)
-    artifacts = {
-        "comparison_csv": str(comparison_csv),
-        "comparison_plot": str(comparison_plot),
-        "roc_plot": str(roc_plot),
-    }
+    artifacts = {"comparison_csv": str(comparison_csv)}
+    if not skip_plots:
+        comparison_plot = plot_model_comparison(metrics_per_model, baseline, config, tag)
+        roc_plot = plot_roc_curves(metrics_per_model, config, tag)
+        artifacts["comparison_plot"] = str(comparison_plot)
+        artifacts["roc_plot"] = str(roc_plot)
     if key:
         summary.setdefault("artifacts", {})[key] = artifacts
         summary.setdefault("evaluate", {})[key] = {
@@ -427,6 +544,7 @@ def _config_summary(config: ExperimentConfig) -> dict[str, object]:
         "label_epsilon": config.label_epsilon,
         "feature_columns": list(config.feature_columns),
         "universe": list(config.symbols),
+        "category_id": config.category_id,
         "ablation_tag": config.ablation_tag,
         "num_features": config.num_features,
         "split_mode": config.split_mode,
@@ -462,16 +580,68 @@ def _load_model(
     return model
 
 
+def _resolve_category_run_list(args: argparse.Namespace) -> list[str]:
+    if args.categories:
+        return [c.strip().lower() for c in args.categories.split(",") if c.strip()]
+    if args.all_categories:
+        return list(CATEGORY_IDS)
+    return []
+
+
+def run_all_categories_loso(
+    args: argparse.Namespace, base_config: ExperimentConfig
+) -> dict[str, object]:
+    categories = _resolve_category_run_list(args)
+    if not categories:
+        raise ValueError("--all-categories or --categories requires category ids")
+    unknown = [c for c in categories if c not in CATEGORY_IDS and c != "meme8"]
+    if unknown:
+        raise ValueError(f"Unknown categories: {unknown}. Valid: {list(CATEGORY_IDS)}")
+
+    aggregate: dict[str, object] = {"mode": "loso", "categories": {}}
+    for cat in categories:
+        print(f"\n################## CATEGORY: {cat} ##################")
+        cat_args = argparse.Namespace(**{**vars(args), "category": cat, "all_categories": False})
+        if cat == "meme8":
+            config = apply_overrides(
+                replace_config_category(base_config, None, get_legacy_meme8_symbols()),
+                cat_args,
+            )
+        else:
+            config = apply_overrides(apply_category(base_config, cat), cat_args)
+        config.ensure_dirs()
+        aggregate["categories"][cat] = run_loso(cat_args, config)
+
+    return aggregate
+
+
+def replace_config_category(
+    config: ExperimentConfig,
+    category_id: str | None,
+    symbols: tuple[str, ...],
+) -> ExperimentConfig:
+    from dataclasses import replace
+
+    return replace(config, category_id=category_id, symbols=symbols)
+
+
 def main() -> None:
     args = parse_args()
-    config = apply_overrides(config_from_yaml(args.config), args)
-    config.ensure_dirs()
+    base_config = config_from_yaml(args.config)
+    base_config.ensure_dirs()
 
-    if args.mode == "single":
+    if args.all_categories or args.categories:
+        if args.mode != "loso":
+            raise ValueError("--all-categories/--categories only supported with --mode loso")
+        summary = run_all_categories_loso(args, base_config)
+    elif args.mode == "single":
+        config = apply_overrides(base_config, args)
         summary = run_single(args, config)
     elif args.mode == "pooled":
+        config = apply_overrides(base_config, args)
         summary = run_pooled(args, config)
     elif args.mode == "loso":
+        config = apply_overrides(base_config, args)
         summary = run_loso(args, config)
     else:
         raise ValueError(f"Unknown mode: {args.mode}")

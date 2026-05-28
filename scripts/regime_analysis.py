@@ -103,9 +103,24 @@ def main() -> None:
     parser.add_argument("--window", type=int, default=192)
     parser.add_argument("--tag", default="label_k12")
     parser.add_argument("--model", default="mlp")
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Research category (bluechip, midcap, ...); default legacy meme* glob.",
+    )
     args = parser.parse_args()
 
-    paths = sorted(METRICS_DIR.glob(f"meme*_w{args.window}_loso_*{args.tag}*_{args.model}_predictions.csv"))
+    prefix = "meme*"
+    if args.category:
+        from src.categories import metrics_universe_glob
+
+        prefix = metrics_universe_glob(args.category)
+
+    paths = sorted(
+        METRICS_DIR.glob(
+            f"{prefix}_w{args.window}_loso_*{args.tag}*_{args.model}_predictions.csv"
+        )
+    )
     if not paths:
         print("No prediction files found.")
         return

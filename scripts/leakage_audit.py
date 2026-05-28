@@ -424,9 +424,18 @@ def main() -> None:
     parser.add_argument("--window", type=int, default=192)
     parser.add_argument("--label-k", type=float, default=1.2)
     parser.add_argument("--skip-poison", action="store_true", help="skip slow poison control train")
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Research category for audit universe (default legacy config symbols).",
+    )
     args = parser.parse_args()
 
     config = config_from_yaml()
+    if args.category:
+        from src.categories import apply_category
+
+        config = apply_category(config, args.category)
     config.window_size = args.window
     config.label_k = args.label_k
     config.ablation_tag = "label_k12"

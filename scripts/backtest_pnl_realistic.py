@@ -68,8 +68,18 @@ class RealisticConfig:
         return self.initial_capital / max(self.max_positions, 1)
 
 
-def _prediction_paths(window: int, tag: str, model: str = "mlp") -> list[Path]:
-    return sorted(METRICS_DIR.glob(f"meme*_w{window}_loso_*{tag}*_{model}_predictions.csv"))
+def _prediction_paths(
+    window: int,
+    tag: str,
+    model: str = "mlp",
+    category: str | None = None,
+) -> list[Path]:
+    from src.categories import metrics_universe_glob
+
+    prefix = metrics_universe_glob(category)
+    return sorted(
+        METRICS_DIR.glob(f"{prefix}_w{window}_loso_*{tag}*_{model}_predictions.csv")
+    )
 
 
 def _symbol_from_path(path: Path) -> str:
@@ -393,6 +403,7 @@ def main() -> None:
     parser.add_argument("--slippage-mc-trials", type=int, default=50)
     parser.add_argument("--per-round-tau", action="store_true", help="pick tau per held-out val set")
     parser.add_argument("--max-positions", type=int, default=3, help="max concurrent positions")
+    parser.add_argument("--category", default=None, help="Research category glob prefix.")
     args = parser.parse_args()
 
     cfg = RealisticConfig(
@@ -405,7 +416,9 @@ def main() -> None:
         max_positions=args.max_positions,
     )
 
-    paths = _prediction_paths(args.window, args.tag, args.model)
+    paths = _prediction_paths(
+        args.window, args.tag, args.model, category=args.category
+    )
     if not paths:
         print(f"No prediction files for w={args.window} tag={args.tag} model={args.model}")
         return

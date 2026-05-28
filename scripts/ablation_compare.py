@@ -19,17 +19,27 @@ BASELINE_TAG = "baseline"
 
 
 def _label_from_filename(path: Path) -> str:
-    name = path.stem  # e.g. "meme8_..._w20_loso_summary" or "meme8_..._w20_loso_no_volume_z_summary"
-    m = re.match(r"^meme\d+_.+?_w\d+_loso(?:_(?P<tag>.+))?_summary$", name)
+    name = path.stem
+    m = re.match(
+        r"^(?:meme\d+|(?:bluechip|midcap|solana_fast|base_eco|micro_cap)\d+)"
+        r"_.+?_w\d+_loso(?:_(?P<tag>.+))?_summary$",
+        name,
+    )
     if not m:
         return name
     tag = m.group("tag")
     return tag if tag else BASELINE_TAG
 
 
-def load_summaries() -> dict[str, dict]:
+def load_summaries(category: str | None = None) -> dict[str, dict]:
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from src.categories import metrics_universe_glob
+
+    prefix = metrics_universe_glob(category)
     out: dict[str, dict] = {}
-    for path in sorted(METRICS_DIR.glob("meme*_loso*_summary.json")):
+    for path in sorted(METRICS_DIR.glob(f"{prefix}_loso*_summary.json")):
         tag = _label_from_filename(path)
         with path.open("r", encoding="utf-8") as fh:
             out[tag] = json.load(fh)
@@ -259,7 +269,12 @@ def plot_comparison(summaries: dict[str, dict]) -> Path | None:
 
 
 def main() -> None:
-    summaries = load_summaries()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--category", default=None, help="Research category glob prefix.")
+    args = parser.parse_args()
+    summaries = load_summaries(category=args.category)
     if not summaries:
         print("No LOSO summary files found in", METRICS_DIR)
         return

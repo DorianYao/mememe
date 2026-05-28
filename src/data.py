@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -87,18 +88,21 @@ def fetch_klines(
             "endTime": end_time_ms,
             "limit": limit,
         }
+        batch: list[list[object]] = []
         for attempt in range(1, max_retries + 1):
             try:
-                response = session.get(BINANCE_KLINES_URL, params=params, timeout=20)
+                response = session.get(BINANCE_KLINES_URL, params=params, timeout=30)
                 response.raise_for_status()
+                batch = response.json()
+                if not isinstance(batch, list):
+                    raise ValueError(f"Unexpected klines payload type: {type(batch)}")
                 break
-            except requests.RequestException as exc:
+            except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
                 if attempt == max_retries:
                     raise RuntimeError(
                         f"Failed to fetch klines for {symbol} {interval}: {exc}"
                     ) from exc
-                time.sleep(1.5 * attempt)
-        batch = response.json()
+                time.sleep(2.0 * attempt)
         if not batch:
             break
         rows.extend(batch)
@@ -168,7 +172,7 @@ def download_multi(
     for sym in targets:
         try:
             saved[sym.upper()] = download_ohlcv(config, refresh=refresh, symbol=sym)
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             print(f"[download] WARN: failed to fetch {sym}: {exc}")
     return saved
 

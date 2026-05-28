@@ -26,23 +26,37 @@ K_SCAN: list[tuple[float, str | None, str]] = [
 ]
 
 
-def _summary_path(tag: str | None) -> Path | None:
+def _universe_prefix(category: str | None) -> str:
+    if category:
+        sys_path = PROJECT_ROOT
+        import sys
+
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from src.categories import metrics_universe_glob
+
+        return metrics_universe_glob(category)
+    return "meme*"
+
+
+def _summary_path(tag: str | None, category: str | None = None) -> Path | None:
+    prefix = _universe_prefix(category)
     if tag is None:
-        paths = sorted(METRICS_DIR.glob("meme*_loso_summary.json"))
+        paths = sorted(METRICS_DIR.glob(f"{prefix}_loso_summary.json"))
         paths = [
             p
             for p in paths
-            if not re.search(r"_loso_[a-z0-9]+_summary\.json$", p.name)
+            if not re.search(r"_loso_[A-Z0-9]+USDT", p.name)
             and "label_k" not in p.name
         ]
     else:
-        paths = sorted(METRICS_DIR.glob(f"meme*_loso_{tag}_summary.json"))
+        paths = sorted(METRICS_DIR.glob(f"{prefix}_loso_{tag}_summary.json"))
     return paths[0] if paths else None
 
 
-def _sample_count_from_metrics(tag: str | None) -> int | None:
+def _sample_count_from_metrics(tag: str | None, category: str | None = None) -> int | None:
+    prefix = _universe_prefix(category)
     if tag is None:
-        pattern = "meme*_loso_*_mlp_metrics.json"
+        pattern = f"{prefix}_loso_*_mlp_metrics.json"
         files = [
             p
             for p in METRICS_DIR.glob(pattern)
@@ -53,7 +67,7 @@ def _sample_count_from_metrics(tag: str | None) -> int | None:
             )
         ]
     else:
-        files = list(METRICS_DIR.glob(f"meme*_loso_*_{tag}_mlp_metrics.json"))
+        files = list(METRICS_DIR.glob(f"{prefix}_loso_*_{tag}_mlp_metrics.json"))
     if not files:
         return None
     total = 0
@@ -64,10 +78,10 @@ def _sample_count_from_metrics(tag: str | None) -> int | None:
     return total
 
 
-def load_scan_summaries() -> dict[float, dict]:
+def load_scan_summaries(category: str | None = None) -> dict[float, dict]:
     out: dict[float, dict] = {}
     for k, tag, _desc in K_SCAN:
-        path = _summary_path(tag)
+        path = _summary_path(tag, category=category)
         if path is None:
             continue
         with path.open("r", encoding="utf-8") as fh:
@@ -75,7 +89,7 @@ def load_scan_summaries() -> dict[float, dict]:
         payload["_summary_path"] = str(path)
         payload["_tag"] = tag or "baseline"
         payload["_k"] = k
-        payload["_test_samples"] = _sample_count_from_metrics(tag)
+        payload["_test_samples"] = _sample_count_from_metrics(tag, category=category)
         out[k] = payload
     return out
 
@@ -181,7 +195,16 @@ def plot_comparison(summaries: dict[float, dict]) -> Path | None:
 
 
 def main() -> None:
-    summaries = load_scan_summaries()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Research category id for glob prefix (default legacy meme*).",
+    )
+    args = parser.parse_args()
+    summaries = load_scan_summaries(category=args.category)
     if not summaries:
         print("No label_k summary files found in", METRICS_DIR)
         print("Expected baseline: meme*_loso_summary.json")

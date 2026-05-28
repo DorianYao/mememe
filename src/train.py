@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
 import random
-from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
@@ -27,10 +27,26 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def _to_loader(dataset: FeatureDataset, batch_size: int, shuffle: bool) -> DataLoader:
+def _to_loader(
+    dataset: FeatureDataset,
+    batch_size: int,
+    shuffle: bool,
+    *,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+) -> DataLoader:
     x = torch.from_numpy(dataset.x)
     y = torch.from_numpy(dataset.y)
-    return DataLoader(TensorDataset(x, y), batch_size=batch_size, shuffle=shuffle)
+    kwargs: dict[str, object] = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+    }
+    if num_workers > 0:
+        kwargs["persistent_workers"] = True
+        kwargs["prefetch_factor"] = 2
+    return DataLoader(TensorDataset(x, y), **kwargs)
 
 
 def _resolve_device(device: str | None) -> torch.device:
@@ -47,6 +63,8 @@ def run_epoch(
     loader: DataLoader,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None = None,
+    *,
+    pos_weight: torch.Tensor | None = None,
 ) -> dict[str, float]:
     training = optimizer is not None
     model.train(training)
@@ -56,13 +74,14 @@ def run_epoch(
     all_targets: list[np.ndarray] = []
 
     for x, y in loader:
-        x = x.to(device)
-        y = y.to(device).float()
+        x = x.to(device, non_blocking=True)
+        y = y.to(device, non_blocking=True).float()
         if training:
             optimizer.zero_grad(set_to_none=True)
         logits = model(x)
+        pw = pos_weight if training and pos_weight is not None else _pos_weight(y)
         loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, pos_weight=_pos_weight(y)
+            logits, y, pos_weight=pw
         )
         if training:
             loss.backward()
@@ -92,9 +111,22 @@ def train_one_model(
 ) -> tuple[nn.Module, dict[str, list[float]], dict[str, float]]:
     set_seed(config.random_state)
     resolved_device = _resolve_device(device)
+    use_cuda = resolved_device.type == "cuda"
+    workers = config.dataloader_workers if config.dataloader_workers > 0 else 0
+    if workers > 0:
+        workers = min(workers, max(1, (os.cpu_count() or 2) - 1))
 
-    train_loader = _to_loader(splits.train, config.batch_size, shuffle=True)
-    val_loader = _to_loader(splits.val, config.batch_size, shuffle=False)
+    loader_kwargs = {
+        "num_workers": workers,
+        "pin_memory": use_cuda,
+    }
+    train_loader = _to_loader(
+        splits.train, config.batch_size, shuffle=True, **loader_kwargs
+    )
+    val_loader = _to_loader(
+        splits.val, config.batch_size, shuffle=False, **loader_kwargs
+    )
+    train_pos_weight = _pos_weight(torch.from_numpy(splits.train.y)).to(resolved_device)
 
     window_size = splits.train.x.shape[1]
     num_features = splits.train.x.shape[2]
@@ -114,7 +146,7 @@ def train_one_model(
         "val_macro_f1": [],
     }
 
-    best_state = deepcopy(model.state_dict())
+    best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     best_val_metric = -float("inf")
     best_epoch = -1
     patience_counter = 0
@@ -124,8 +156,15 @@ def train_one_model(
         iterator = tqdm(iterator, desc=f"Training {model_name.upper()}", leave=False)
 
     for epoch in iterator:
-        train_metrics = run_epoch(model, train_loader, resolved_device, optimizer)
-        val_metrics = run_epoch(model, val_loader, resolved_device)
+        train_metrics = run_epoch(
+            model,
+            train_loader,
+            resolved_device,
+            optimizer,
+            pos_weight=train_pos_weight,
+        )
+        with torch.inference_mode():
+            val_metrics = run_epoch(model, val_loader, resolved_device)
         scheduler.step()
 
         for key, value in train_metrics.items():
@@ -136,7 +175,7 @@ def train_one_model(
         score = val_metrics["macro_f1"]
         if score > best_val_metric:
             best_val_metric = score
-            best_state = deepcopy(model.state_dict())
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             best_epoch = epoch
             patience_counter = 0
         else:

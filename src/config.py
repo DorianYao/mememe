@@ -27,6 +27,8 @@ class ExperimentConfig:
         "BOMEUSDT",
         "1000SATSUSDT",
     )
+    # Research category (bluechip, midcap, ...); None = legacy meme8-style tag
+    category_id: str | None = None
     interval: str = "15m"
     lookback_days: int = 720
 
@@ -80,6 +82,8 @@ class ExperimentConfig:
     dropout: float = 0.3
     early_stopping_patience: int = 8
     random_state: int = 42
+    # DataLoader workers (0 = main process only; 4 is good on CPU for large LOSO sets)
+    dataloader_workers: int = 4
 
     # 网络结构
     mlp_hidden: tuple[int, ...] = (256, 128, 64)
@@ -162,19 +166,26 @@ class ExperimentConfig:
             return f"wf{t}{v}"
         return "ratio"
 
-    def universe_tag(self, mode: str, held_out: str | None = None) -> str:
-        symbols_signature = "-".join(s[:4] for s in self.symbols)[:40]
+    def universe_prefix(self) -> str:
+        """Stable run-id prefix: category16_* or legacy meme{n}_*."""
         n = len(self.symbols)
+        if self.category_id:
+            return f"{self.category_id.lower()}{n}"
+        symbols_signature = "-".join(s[:4] for s in self.symbols)[:40]
+        return f"meme{n}_{symbols_signature}"
+
+    def universe_tag(self, mode: str, held_out: str | None = None) -> str:
+        prefix = self.universe_prefix()
         split_suffix = f"_{self.split_tag}" if mode == "loso" else ""
         if mode == "loso":
             held_part = f"_{held_out.upper()}" if held_out is not None else ""
             base = (
-                f"meme{n}_{symbols_signature}_{self.interval}_w{self.window_size}"
+                f"{prefix}_{self.interval}_w{self.window_size}"
                 f"_loso{held_part}{split_suffix}"
             )
         else:
             base = (
-                f"meme{n}_{symbols_signature}_{self.interval}_w{self.window_size}_{mode}"
+                f"{prefix}_{self.interval}_w{self.window_size}_{mode}"
             )
         return f"{base}{self._ablation_suffix()}"
 
@@ -197,6 +208,7 @@ def config_from_yaml(path: Path | None = None) -> ExperimentConfig:
         return ExperimentConfig()
 
     tuple_fields = {"feature_columns", "mlp_hidden", "cnn_channels", "symbols"}
+    # category_id loaded from YAML if present (optional)
     kwargs: dict[str, Any] = {}
     for key, value in raw.items():
         if key in tuple_fields and isinstance(value, list):

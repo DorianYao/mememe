@@ -77,6 +77,7 @@ def evaluate_model(
     run_tag: str | None = None,
     metric_for_threshold: str = "macro_f1",
     prob_fn=None,
+    skip_artifacts: bool = False,
 ) -> dict[str, object]:
     if prob_fn is not None:
         val_probs = prob_fn(model, splits.val)
@@ -129,6 +130,9 @@ def evaluate_model(
     tag = run_tag or config.run_tag(model_name)
     metrics_path = config.metrics_dir / f"{tag}_metrics.json"
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+
+    if skip_artifacts:
+        return metrics
 
     predictions_path = config.metrics_dir / f"{tag}_predictions.csv"
     have_syms = splits.test.symbols is not None and len(splits.test.symbols) > 0
@@ -254,6 +258,7 @@ def aggregate_loso(
 
     summary: dict[str, object] = {
         "universe": universe,
+        "category_id": config.category_id,
         "n_rounds": len(rounds),
         "per_round": {
             symbol: {

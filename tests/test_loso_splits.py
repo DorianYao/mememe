@@ -76,6 +76,41 @@ def test_label_volatility_window_config():
     assert config.label_volatility_window != config.volatility_window
 
 
+def test_calendar_loso_sixteen_symbols(monkeypatch):
+    """Calendar LOSO invariant holds with a 16-symbol universe (category scale)."""
+    n = 80
+    ts = np.array([f"2024-06-01T{i:02d}:00:00+00:00" for i in range(n)])
+    x = np.random.randn(n, 4, 3).astype(np.float32)
+    y = (np.random.rand(n) > 0.5).astype(np.float32)
+    symbols = [f"S{i:02d}" for i in range(16)]
+    per = {}
+    for sym in symbols:
+        per[sym] = (x.copy(), y.copy(), ts.copy(), np.array([sym] * n, dtype=object))
+
+    config = ExperimentConfig(
+        symbols=tuple(symbols),
+        category_id="bluechip",
+        split_mode="calendar",
+        window_size=4,
+        time_train_fraction=0.70,
+        time_val_fraction=0.85,
+        label_k=0.1,
+    )
+
+    def fake_build(symbols_list, cfg, cache=None):
+        return per
+
+    monkeypatch.setattr("src.multi.build_per_symbol", fake_build)
+    held = symbols[0]
+    splits = build_loso_splits(held, config, symbols=symbols)
+
+    assert len(splits.train.y) > 0
+    assert len(splits.test.y) > 0
+    train_max = max(splits.train.timestamps.tolist())
+    test_min = min(splits.test.timestamps.tolist())
+    assert train_max < test_min
+
+
 def test_apply_mask_empty():
     x = np.zeros((0, 2, 3), dtype=np.float32)
     y = np.zeros(0, dtype=np.float32)

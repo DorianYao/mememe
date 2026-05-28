@@ -46,8 +46,11 @@ class TradeRow:
     forward_log_return: float
 
 
-def _prediction_paths(window: int, tag: str) -> list[Path]:
-    pattern = f"meme*_w{window}_loso_*_{tag}_mlp_predictions.csv"
+def _prediction_paths(window: int, tag: str, category: str | None = None) -> list[Path]:
+    from src.categories import metrics_universe_glob
+
+    prefix = metrics_universe_glob(category)
+    pattern = f"{prefix}_w{window}_loso_*_{tag}_mlp_predictions.csv"
     return sorted(METRICS_DIR.glob(pattern))
 
 
@@ -293,11 +296,15 @@ def main() -> None:
         default=0.001,
         help="one-way fee rate (default 0.001 = 10 bps, round-trip 20 bps)",
     )
+    parser.add_argument("--category", default=None, help="Research category glob prefix.")
     args = parser.parse_args()
 
-    paths = _prediction_paths(args.window, args.tag)
+    paths = _prediction_paths(args.window, args.tag, category=args.category)
     if not paths:
-        print(f"No prediction files: meme*_w{args.window}_loso_*_{args.tag}_mlp_predictions.csv")
+        print(
+            f"No prediction files for window={args.window} tag={args.tag} "
+            f"category={args.category or 'legacy'}"
+        )
         return
 
     config = config_from_yaml()

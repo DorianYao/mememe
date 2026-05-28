@@ -1,4 +1,4 @@
-# finPaper 实验报告
+# 实验报告
 
 **项目**：15 分钟 K 线下一根涨跌二分类（MLP + 1D CNN）  
 **核心实验**：8 个 Meme 币 Leave-One-Symbol-Out（LOSO）跨币种泛化  
@@ -858,3 +858,25 @@ MOG / POPCAT / NEIRO 等严格协议复评（`scripts/holdout_coins_eval.py`）�
 - **严格主结论**：`meme8_*_wf7085_label_k12_summary.json`（AUC ≈ 0.510）
 - **开发对照**：`meme8_*_loso_label_k12_summary.json` 或 `*_w192_loso_*_label_k12_*`（AUC ≈ 0.743）
 - **相关矩阵**：`outputs/metrics/meme_return_correlation.json`
+
+---
+
+## 18. 分大类 LOSO（五大类 × 16 币）
+
+**升级日期**：2026-05-28  
+**设计**：按 `advice/ClassificationSuggestion.md` 推荐五类，每类 **16 个 Binance USDT** 现货对，**类内 LOSO**（15 训 / 1 测）；算法与 §1 冻结配置相同（`k=1.2`, `w=192`, MLP, calendar `wf7085`）。**不跨类池化**；与 legacy `meme8` 结论分表记录。
+
+| category_id | 中文 | 输出前缀示例 |
+| --- | --- | --- |
+| `bluechip` | 蓝筹 Meme | `bluechip16_15m_w192_loso_*` |
+| `midcap` | 中盘趋势 | `midcap16_*` |
+| `solana_fast` | Solana 高频 | `solana_fast16_*` |
+| `base_eco` | 新生态（Binance 代理） | `base_eco16_*` |
+| `micro_cap` | 超小盘（策展） | `micro_cap16_*` |
+
+- **配置**：`config/categories.yaml`（替补说明见各类 `notes`）
+- **校验**：`python3 scripts/validate_binance_symbols.py`
+- **全量跑**：`bash scripts/run_all_categories.sh`
+- **跨类对比**：`outputs/metrics/categories_loso_comparison.json`（`scripts/category_loso_compare.py`）
+
+> legacy 8 币主结论（§1.1）**不变**；五大类结果待全量实验后填入本节表格。
