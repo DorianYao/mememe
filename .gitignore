@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+data/raw/
+data/processed/
+outputs/models/
+outputs/metrics/
+outputs/figures/
+advice/
+paper/

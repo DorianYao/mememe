@@ -1,0 +1,44 @@
+symbol: BTCUSDT
+symbols:
+  - DOGEUSDT
+  - SHIBUSDT
+  - PEPEUSDT
+  - WIFUSDT
+  - BONKUSDT
+  - FLOKIUSDT
+  - BOMEUSDT
+  - 1000SATSUSDT
+
+interval: 15m
+lookback_days: 720
+
+window_size: 20
+
+volume_z_window: 50
+volatility_window: 50
+label_volatility_window: 50
+
+# LOSO split: "ratio" (legacy) or "calendar" (walk-forward)
+split_mode: ratio
+time_train_fraction: 0.70
+time_val_fraction: 0.85
+
+label_mode: volatility   # "fixed" or "volatility"
+label_epsilon: 0.0005
+label_k: 0.3
+
+val_ratio: 0.15
+test_ratio: 0.15
+
+batch_size: 256
+epochs: 50
+learning_rate: 0.001
+weight_decay: 0.0001
+dropout: 0.3
+early_stopping_patience: 8
+random_state: 42
+
+mlp_hidden: [256, 128, 64]
+cnn_channels: [32, 64]
+cnn_kernel_size: 3
+cnn_fc_hidden: 64
