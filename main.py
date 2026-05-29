@@ -340,6 +340,11 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
         path = loso_processed_path(config, held)
         tag_base = config.universe_tag("loso", held)
 
+        if getattr(args, "skip_existing", False) and args.stage == "features":
+            if path.exists() and not args.refresh:
+                print(f"[skip-existing] {held} npz already at {path.name}")
+                continue
+
         if getattr(args, "skip_existing", False) and args.stage in {"train", "evaluate", "all"}:
             metrics_path = config.metrics_dir / f"{tag_base}_mlp_metrics.json"
             if metrics_path.exists() and path.exists():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run one LOSO experiment with parallel held-out training rounds.
+"""Run one LOSO experiment with parallel feature build + parallel held-out training.
 
-Phase 1: build all .npz (single process, parallel per-symbol via --feature-workers).
+Phase 1: per-symbol windows + all LOSO .npz (parallel threads, shared cache).
 Phase 2: train+eval each held-out in parallel (--jobs workers).
 Phase 3: aggregate summary.json from per-round metrics on disk.
 
@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 
 from src.config import ExperimentConfig, config_from_yaml
 from src.evaluate import aggregate_loso
-from src.multi import loso_processed_path
+from src.multi import build_all_loso_npz, loso_processed_path
 
 
 def _parse_main_argv(argv: list[str]) -> tuple[argparse.Namespace, ExperimentConfig]:
@@ -44,11 +44,6 @@ def _parse_main_argv(argv: list[str]) -> tuple[argparse.Namespace, ExperimentCon
     return args, config
 
 
-def _run(cmd: list[str], env: dict[str, str] | None = None) -> None:
-    print(f"[parallel] {' '.join(cmd)}", flush=True)
-    subprocess.run(cmd, check=True, cwd=ROOT, env=env)
-
-
 def _train_one(
     base_cmd: list[str],
     held: str,
@@ -62,7 +57,7 @@ def _train_one(
         "train",
         "--skip-existing",
     ]
-    print(f"[parallel] held-out={held}", flush=True)
+    print(f"[parallel] train held-out={held}", flush=True)
     proc = subprocess.run(cmd, cwd=ROOT, env=env)
     return held, proc.returncode
 
@@ -113,18 +108,22 @@ def main() -> None:
     main_args, config = _parse_main_argv(main_argv)
     jobs = max(1, args.jobs)
     symbols = list(config.symbols)
+    npz_workers = max(1, min(jobs, int(os.environ.get("FEATURE_WORKERS", jobs))))
 
     env = os.environ.copy()
     env["PARALLEL_GPU_JOBS"] = str(jobs)
 
     print(
         f"[parallel] category={config.category_id} w={config.window_size} "
-        f"k={config.label_k} jobs={jobs} symbols={len(symbols)}",
+        f"k={config.label_k} train_jobs={jobs} npz_threads={npz_workers} symbols={len(symbols)}",
         flush=True,
     )
 
-    feature_cmd = [*base_cmd, "--stage", "features"]
-    _run(feature_cmd, env=env)
+    build_all_loso_npz(
+        config,
+        max_workers=npz_workers,
+        refresh=bool(main_args.refresh),
+    )
 
     pending = [
         sym

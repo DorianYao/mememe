@@ -352,6 +352,65 @@ def build_and_save_loso(
     return splits, path
 
 
+def _save_loso_npz_worker(held_out: str, config: ExperimentConfig, cache: PerSymbol) -> str:
+    path = loso_processed_path(config, held_out)
+    if path.exists():
+        print(f"[multi] npz exists, skip {held_out} -> {path.name}", flush=True)
+        return held_out
+    print(f"[multi] building loso npz held-out={held_out}...", flush=True)
+    build_and_save_loso(config, held_out, per_symbol_cache=cache)
+    print(f"[multi] saved {held_out}", flush=True)
+    return held_out
+
+
+def build_all_loso_npz(
+    config: ExperimentConfig,
+    *,
+    per_symbol_cache: PerSymbol | None = None,
+    max_workers: int = 1,
+    refresh: bool = False,
+) -> PerSymbol:
+    """Build per-symbol cache (if needed) and all LOSO .npz files, optionally in parallel."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    symbols = list(config.symbols)
+    cache = per_symbol_cache
+    if cache is None:
+        print("[multi] building per-symbol window cache (one-time)...", flush=True)
+        cache = build_per_symbol(symbols, config)
+
+    pending = [
+        sym
+        for sym in symbols
+        if refresh or not loso_processed_path(config, sym).exists()
+    ]
+    if not pending:
+        print("[multi] all LOSO npz files exist", flush=True)
+        return cache
+
+    workers = max(1, min(int(max_workers or 1), len(pending)))
+    if refresh:
+        for sym in pending:
+            loso_processed_path(config, sym).unlink(missing_ok=True)
+
+    if workers <= 1:
+        for sym in pending:
+            _save_loso_npz_worker(sym, config, cache)
+        return cache
+
+    print(
+        f"[multi] building {len(pending)} LOSO npz with {workers} threads...",
+        flush=True,
+    )
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(_save_loso_npz_worker, sym, config, cache) for sym in pending
+        ]
+        for fut in as_completed(futures):
+            fut.result()
+    return cache
+
+
 def build_and_save_pooled(
     config: ExperimentConfig,
     symbols: list[str] | None = None,
