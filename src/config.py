@@ -84,6 +84,8 @@ class ExperimentConfig:
     random_state: int = 42
     # DataLoader workers (0 = main process only; 4 is good on CPU for large LOSO sets)
     dataloader_workers: int = 4
+    # Per-symbol window build workers (1 = sequential; 4–8 good on multi-core hosts)
+    feature_workers: int = 1
 
     # 网络结构
     mlp_hidden: tuple[int, ...] = (256, 128, 64)

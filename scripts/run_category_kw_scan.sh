@@ -70,8 +70,7 @@ for combo in "${COMBOS[@]}"; do
   fi
   echo "" | tee -a "$LOG"
   echo ">>> category=$CATEGORY k=$k w=$w tag=$tag $(date -Iseconds)" | tee -a "$LOG"
-  python3 main.py --mode loso --category "$CATEGORY" --stage all --model mlp \
-    --label-k "$k" --window-size "$w" --ablation-tag "$tag" \
+  bash scripts/run_loso_combo.sh "$CATEGORY" "$k" "$w" "$tag" \
     "${TRAIN_EXTRA_ARGS[@]}" \
     "${SPLIT_ARGS[@]}" "$@" \
     2>&1 | tee -a "$LOG"

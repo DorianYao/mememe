@@ -164,6 +164,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="DataLoader worker processes (default from config, usually 4).",
     )
+    parser.add_argument(
+        "--feature-workers",
+        type=int,
+        default=None,
+        help="Parallel workers for per-symbol window building (default 1).",
+    )
     return parser.parse_args()
 
 
@@ -187,6 +193,7 @@ def apply_overrides(config: ExperimentConfig, args: argparse.Namespace) -> Exper
         "label_volatility_window",
         "volatility_window",
         "dataloader_workers",
+        "feature_workers",
     ]
     for key in direct_keys:
         value = getattr(args, key, None)

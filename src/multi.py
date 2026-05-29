@@ -28,33 +28,53 @@ from .features import (
 PerSymbol = dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]
 
 
+def _build_one_symbol(
+    sym: str, config: ExperimentConfig
+) -> tuple[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None]:
+    key = sym.upper()
+    try:
+        ohlcv = load_ohlcv(config, symbol=sym)
+    except FileNotFoundError as exc:
+        print(f"[multi] WARN: missing data for {sym}: {exc}", flush=True)
+        return key, None
+    try:
+        x, y, ts, sy = build_windows(ohlcv, config, symbol=key)
+    except ValueError as exc:
+        print(f"[multi] WARN: cannot build windows for {sym}: {exc}", flush=True)
+        return key, None
+    positive = float(y.mean()) if len(y) else float("nan")
+    print(
+        f"[multi] {key:<14} samples={len(y):>6}  positive_rate={positive:.4f}",
+        flush=True,
+    )
+    return key, (x, y, ts, sy)
+
+
 def build_per_symbol(
     symbols: list[str],
     config: ExperimentConfig,
     cache: PerSymbol | None = None,
 ) -> PerSymbol:
     """对每个币种单独建窗口；可选传入缓存避免重复计算。"""
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
     per_symbol: PerSymbol = dict(cache) if cache else {}
-    for sym in symbols:
-        key = sym.upper()
-        if key in per_symbol:
-            continue
-        try:
-            ohlcv = load_ohlcv(config, symbol=sym)
-        except FileNotFoundError as exc:
-            print(f"[multi] WARN: missing data for {sym}: {exc}")
-            continue
-        try:
-            x, y, ts, sy = build_windows(ohlcv, config, symbol=key)
-        except ValueError as exc:
-            print(f"[multi] WARN: cannot build windows for {sym}: {exc}")
-            continue
-        per_symbol[key] = (x, y, ts, sy)
-        positive = float(y.mean()) if len(y) else float("nan")
-        print(
-            f"[multi] {key:<14} samples={len(y):>6}  "
-            f"positive_rate={positive:.4f}"
-        )
+    pending = [sym for sym in symbols if sym.upper() not in per_symbol]
+    workers = max(1, int(getattr(config, "feature_workers", 1) or 1))
+    if workers <= 1 or len(pending) <= 1:
+        for sym in pending:
+            key, payload = _build_one_symbol(sym, config)
+            if payload is not None:
+                per_symbol[key] = payload
+    else:
+        workers = min(workers, len(pending))
+        print(f"[multi] building {len(pending)} symbols with {workers} workers...", flush=True)
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(_build_one_symbol, sym, config): sym for sym in pending}
+            for fut in as_completed(futures):
+                key, payload = fut.result()
+                if payload is not None:
+                    per_symbol[key] = payload
     if not per_symbol:
         raise RuntimeError("No symbols produced valid samples.")
     return per_symbol

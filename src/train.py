@@ -58,6 +58,72 @@ def _pos_weight(y: torch.Tensor) -> torch.Tensor:
     return ((1 - positive_rate) / positive_rate).clamp(min=0.5, max=4.0)
 
 
+def _estimate_split_bytes(splits: SplitDataset) -> int:
+    total = 0
+    for ds in (splits.train, splits.val):
+        total += int(ds.x.nbytes + ds.y.nbytes)
+    return total
+
+
+def _should_preload_to_gpu(splits: SplitDataset, device: torch.device) -> bool:
+    """Keep train+val on GPU when they fit — avoids per-batch H2D and DataLoader overhead."""
+    if device.type != "cuda":
+        return False
+    need = _estimate_split_bytes(splits)
+    parallel = max(1, int(os.environ.get("PARALLEL_GPU_JOBS", "1")))
+    try:
+        free, _total = torch.cuda.mem_get_info(device)
+    except Exception:
+        return False
+    return need < int(free * 0.85 / parallel)
+
+
+def _run_epoch_preloaded(
+    model: nn.Module,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    batch_size: int,
+    device: torch.device,
+    optimizer: torch.optim.Optimizer | None = None,
+    *,
+    pos_weight: torch.Tensor | None = None,
+    shuffle: bool = True,
+) -> dict[str, float]:
+    training = optimizer is not None
+    model.train(training)
+    n = y.size(0)
+    order = torch.randperm(n, device=device) if shuffle and training else torch.arange(n, device=device)
+
+    total_loss = 0.0
+    all_probs: list[np.ndarray] = []
+    all_targets: list[np.ndarray] = []
+
+    for start in range(0, n, batch_size):
+        idx = order[start : start + batch_size]
+        xb = x.index_select(0, idx)
+        yb = y.index_select(0, idx)
+        if training:
+            optimizer.zero_grad(set_to_none=True)
+        logits = model(xb)
+        pw = pos_weight if training and pos_weight is not None else _pos_weight(yb)
+        loss = nn.functional.binary_cross_entropy_with_logits(logits, yb, pos_weight=pw)
+        if training:
+            loss.backward()
+            optimizer.step()
+        total_loss += loss.item() * yb.size(0)
+        all_probs.append(torch.sigmoid(logits).detach().cpu().numpy())
+        all_targets.append(yb.detach().cpu().numpy())
+
+    probs = np.concatenate(all_probs)
+    targets = np.concatenate(all_targets).astype(int)
+    preds = (probs >= 0.5).astype(int)
+    return {
+        "loss": total_loss / max(n, 1),
+        "accuracy": float(accuracy_score(targets, preds)),
+        "macro_f1": float(f1_score(targets, preds, average="macro", zero_division=0)),
+    }
+
+
 def run_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -120,18 +186,37 @@ def train_one_model(
         "num_workers": workers,
         "pin_memory": use_cuda,
     }
-    train_loader = _to_loader(
-        splits.train, config.batch_size, shuffle=True, **loader_kwargs
-    )
-    val_loader = _to_loader(
-        splits.val, config.batch_size, shuffle=False, **loader_kwargs
-    )
     train_pos_weight = _pos_weight(torch.from_numpy(splits.train.y)).to(resolved_device)
 
     window_size = splits.train.x.shape[1]
     num_features = splits.train.x.shape[2]
 
     model = build_model(model_name, window_size, num_features, config).to(resolved_device)
+
+    preload = _should_preload_to_gpu(splits, resolved_device)
+    if preload:
+        train_x = torch.from_numpy(splits.train.x).to(resolved_device)
+        train_y = torch.from_numpy(splits.train.y).to(resolved_device)
+        val_x = torch.from_numpy(splits.val.x).to(resolved_device)
+        val_y = torch.from_numpy(splits.val.y).to(resolved_device)
+        train_loader = val_loader = None
+    else:
+        train_x = train_y = val_x = val_y = None
+        train_loader = _to_loader(
+            splits.train, config.batch_size, shuffle=True, **loader_kwargs
+        )
+        val_loader = _to_loader(
+            splits.val, config.batch_size, shuffle=False, **loader_kwargs
+        )
+
+    if verbose:
+        mode = "gpu-preload" if preload else f"loader(workers={workers})"
+        print(
+            f"[{model_name}] device={resolved_device} train_n={len(splits.train.y)} "
+            f"batch={config.batch_size} mode={mode}",
+            flush=True,
+        )
+
     optimizer = AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
@@ -156,15 +241,36 @@ def train_one_model(
         iterator = tqdm(iterator, desc=f"Training {model_name.upper()}", leave=False)
 
     for epoch in iterator:
-        train_metrics = run_epoch(
-            model,
-            train_loader,
-            resolved_device,
-            optimizer,
-            pos_weight=train_pos_weight,
-        )
-        with torch.inference_mode():
-            val_metrics = run_epoch(model, val_loader, resolved_device)
+        if preload:
+            train_metrics = _run_epoch_preloaded(
+                model,
+                train_x,
+                train_y,
+                config.batch_size,
+                resolved_device,
+                optimizer,
+                pos_weight=train_pos_weight,
+                shuffle=True,
+            )
+            with torch.inference_mode():
+                val_metrics = _run_epoch_preloaded(
+                    model,
+                    val_x,
+                    val_y,
+                    config.batch_size,
+                    resolved_device,
+                    shuffle=False,
+                )
+        else:
+            train_metrics = run_epoch(
+                model,
+                train_loader,
+                resolved_device,
+                optimizer,
+                pos_weight=train_pos_weight,
+            )
+            with torch.inference_mode():
+                val_metrics = run_epoch(model, val_loader, resolved_device)
         scheduler.step()
 
         for key, value in train_metrics.items():

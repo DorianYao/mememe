@@ -16,11 +16,19 @@ else
 fi
 
 if (( use_cuda )); then
-  batch="${BATCH_SIZE:-4096}"
-  workers="${DATALOADER_WORKERS:-4}"
+  batch="${BATCH_SIZE:-16384}"
+  workers="${DATALOADER_WORKERS:-0}"
+  ncpu="$(nproc 2>/dev/null || echo 4)"
+  export LOSO_JOBS="${LOSO_JOBS:-4}"
+  export FEATURE_WORKERS="${FEATURE_WORKERS:-$(( ncpu > 1 ? ncpu - 1 : 1 ))}"
   TRAIN_EXTRA_ARGS+=(--device "$DEVICE" --batch-size "$batch" --dataloader-workers "$workers")
-  echo "[runtime] GPU ($DEVICE) batch=$batch workers=$workers"
+  TRAIN_EXTRA_ARGS+=(--feature-workers "$FEATURE_WORKERS")
+  echo "[runtime] GPU ($DEVICE) batch=$batch workers=$workers loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS"
 else
+  ncpu="$(nproc 2>/dev/null || echo 4)"
+  export LOSO_JOBS="${LOSO_JOBS:-$(( ncpu > 2 ? ncpu / 2 : 2 ))}"
+  export FEATURE_WORKERS="${FEATURE_WORKERS:-$(( ncpu > 1 ? ncpu - 1 : 1 ))}"
   TRAIN_EXTRA_ARGS+=(--dataloader-workers "${DATALOADER_WORKERS:-0}")
-  echo "[runtime] CPU workers=${DATALOADER_WORKERS:-0}"
+  TRAIN_EXTRA_ARGS+=(--feature-workers "$FEATURE_WORKERS")
+  echo "[runtime] CPU loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS"
 fi
