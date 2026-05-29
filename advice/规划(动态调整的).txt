@@ -1,0 +1,77 @@
+# 研究规划（动态调整）
+
+> 最后更新：2026-05-29  
+> 依据：[REPORT_CATEGORY.md](../REPORT_CATEGORY.md)、[REPORT.md](../REPORT.md)
+
+---
+
+## 1. 当前状态
+
+- **五类 Phase A**（ratio-LOSO，各 5 组 k×w）已全部完成。
+- **base_eco Phase B** 扩展扫描（26 combo）已完成；五类中 **base_eco 开发协议 AUC 最高**。
+- **严格 calendar 验证**尚未开始；meme8 上同类实验 AUC ≈ 0.51（接近随机），分域结果待复测。
+
+---
+
+## 2. 待验证的四组配置（base_eco）
+
+对以下四组分别做 **实战化模拟**（PnL / confidence threshold / 实盘约束回测），先选出最优，再决定是否进入下一阶段。
+
+| 配置 | AUC | test_n | 判定 |
+| --- | ---: | ---: | --- |
+| **k=1.5, w=224** | 0.7383 | 125,839 | ✅ 可信峰值，建议优先 |
+| k=1.2, w=208 | 0.7343 | 201,533 | 备选（样本更充裕） |
+| k=1.2, w=192 | 0.7151 | 202,152 | Phase A 基准，已被超越 |
+| k=2.5, w=240 | 0.8119 | 28,947 | ❌ 低样本伪高分，仅作对照 |
+
+> 当前范围仅限以上四组；若后续发现其他 AUC > 0.7 且 test_n ≥ 80k 的组合，再纳入对比。
+
+每组需同步跑：
+
+1. **严格 calendar LOSO**（主指标，与 meme8 对齐）
+2. **开发协议下的 PnL / τ 扫描**（与 REPORT §13 同流程）
+3. **外部 holdout**：同类型、未参与训练的 Binance 现货对（检验规律是否可迁移）
+
+---
+
+## 3. 外部验证设计
+
+**原则**：用 **同类别、未进入训练池** 的币做 holdout，检验「base_eco 规律」是否具一般性，而非只在 16 币内循环。
+
+- 候选来源：`config/categories.yaml` 替补列表，或新上线 L2 / Launch 叙事 alt（需 `validate_binance_symbols.py` 确认可交易）。
+- 脚本参考：`scripts/holdout_coins_eval.py`（meme8 上 TURBO 外部确认先例）。
+- **通过标准（暂定）**：严格协议 AUC 显著 > 0.51，且 PnL 在 realistic 约束下仍为正；否则视为不可外推。
+
+---
+
+## 4. 下一阶段（若验证通过）
+
+1. 按 [GeminiAdvice.md](GeminiAdvice.md) 设计 **实战系统**（信号 → 仓位 → 风控）。
+2. 在 paper trading / 小资金实盘上迭代，与开发协议回测对照。
+3. 泄漏审计可对 base_eco 冻结 (k,w) 重跑 `scripts/leakage_audit.py`。
+
+---
+
+## 5. 退出条件（转向备用方向）
+
+若在 **严格 calendar + 外部 holdout + 实战化 PnL** 三重检验下均无法复现稳定规律：
+
+→ 停止在当前「跨币方向预测」主线上继续投入算力，  
+→ 转向 [备用研究方向建议.md](备用研究方向建议.md) 中的备选课题。
+
+**注意**：开发协议 AUC 0.73+ **不能**单独作为「规律存在」的依据（meme8 已有 −23 pp 协议落差先例）。
+
+---
+
+## 6. 近期执行顺序（建议）
+
+| 序号 | 任务 | 优先级 |
+| ---: | --- | --- |
+| 1 | base_eco **k=1.5,w=224** 严格 calendar 16 轮 | P0 |
+| 2 | 同上配置的外部 holdout 币评估 | P0 |
+| 3 | 四组配置的 PnL / τ 对比 | P1 |
+| 4 | k=1.2,w=208 严格 calendar（对照） | P1 |
+| 5 | 选定最优 → GeminiAdvice 实战系统设计 | P2 |
+| 6 | 其余四类 Phase B（视 base_eco 严格结果而定） | P3 |
+
+远程执行见 [docs/remote_workflow.md](../docs/remote_workflow.md)（含 tmux 操作）。

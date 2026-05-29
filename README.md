@@ -4,13 +4,15 @@
 
 本项目从「单币 BTC 二分类」演进为 **跨币种零样本评估**。核心结论（与 [REPORT.md](REPORT.md) 一致）：
 
-| 评估协议 | 冻结配置 `k=1.2, w=192`（MLP） | 含义 |
+| 评估协议 | 冻结配置 `k=1.2, w=192`（MLP，meme8） | 含义 |
 | --- | ---: | --- |
 | **开发协议**（ratio-LOSO，held-out **全时段**） | AUC **0.743** ± 0.072 | 超参探索、消融、机制分析；**非**跨域泛化主结论 |
 | **严格协议**（calendar walk-forward，仅测 **>85% 未来**） | AUC **0.510** ± 0.014 | **主结论**：向前外推 ≈ 随机 |
 | 外部确认（TURBO，未参与调参） | AUC **≈ 0.497** | 支持严格协议结论 |
 
-泄漏审计 **PASS**（无 future-bar 泄露）；开发协议高分主要来自 **训练池与 held-out 共享日历区间**（共享市场状态），而非实现错误。详见 **[REPORT.md](REPORT.md)**。
+**分域进展**（[REPORT_CATEGORY.md](REPORT_CATEGORY.md)）：五大类 × 16 币 Phase A 已完成；**base_eco Phase B 扩展扫描已完成**。开发协议可信峰值 **k=1.5, w=224 → AUC 0.738**（严格 calendar 待验证）。
+
+泄漏审计 **PASS**（无 future-bar 泄露）；开发协议高分主要来自 **训练池与 held-out 共享日历区间**（共享市场状态），而非实现错误。详见 **[REPORT.md](REPORT.md)** 与 **[REPORT_CATEGORY.md](REPORT_CATEGORY.md)**。
 
 ---
 
@@ -67,7 +69,31 @@ python3 main.py --mode loso --category bluechip --held-out DOGEUSDT \
   --ablation-tag label_k12
 ```
 
-输出命名：`{category_id}16_{interval}_w{window}_loso_{HELDOUT}_wf7085_{ablation}_*`（legacy 仍为 `meme8_*`）。跨类汇总：`outputs/metrics/categories_loso_comparison.json`。
+输出命名：`{category_id}16_{interval}_w{window}_loso_{HELDOUT}_wf7085_{ablation}_*`（legacy 仍为 `meme8_*`）。  
+最新实验数据：`outputs/metricsB/metrics/`；跨类汇总见 [REPORT_CATEGORY.md](REPORT_CATEGORY.md)。
+
+### base_eco k×w 扫描（Phase B 已完成）
+
+| 配置 | AUC | test_n | 判定 |
+| --- | ---: | ---: | --- |
+| **k=1.5, w=224**（可信峰值） | **0.738** | 125,839 | 建议冻结 → 严格验证 |
+| k=1.2, w=208 | 0.734 | 201,533 | 备选（样本更充裕） |
+| k=1.2, w=192（Phase A） | 0.715 | 202,152 | 已被超越 |
+| k=2.5, w=240 | 0.812 | 28,947 | 低样本伪高分，勿用 |
+
+```bash
+# 类内 k×w 扫描（开发协议）
+bash scripts/run_category_kw_scan.sh base_eco
+python3 scripts/category_kw_compare.py --category base_eco
+
+# Phase B 扩展峰值搜索（26 combo）
+bash scripts/run_category_kw_extended.sh base_eco
+python3 scripts/category_kw_extended_compare.py --category base_eco
+
+# 严格 calendar 验证（待执行，可信峰值）
+python3 main.py --mode loso --category base_eco --stage all --model mlp \
+  --label-k 1.5 --window-size 224 --split-mode calendar --ablation-tag label_k15
+```
 
 ---
 
@@ -150,6 +176,7 @@ mememe/
 | 类别 | 脚本 |
 | --- | --- |
 | **主流程** | `main.py` |
+| **五大类 k×w** | `run_category_kw_scan.sh`, `run_category_kw_extended.sh`, `category_kw_compare.py`, `category_kw_extended_compare.py`, `run_all_category_kw_scans.sh` |
 | **超参 / 对比** | `run_label_k_scan.sh`, `run_window_scan_k1.sh`, `run_window_fine_k12.sh`, `run_window_extended_k12.sh`, `run_pruned_kw_scan.sh`, `validate_w192.sh`, `label_k_compare.py`, `window_scan_compare.py`, `window_extended_compare.py`, `pruned_kw_compare.py`, `ablation_compare.py`, `walk_forward_loso_compare.py`, `run_label_decouple.py` |
 | **机制与论文图** | `paper_mechanism_figures.py`, `generate_paper_figures.py` |
 | **统计 / regime / PnL** | `statistical_significance.py`, `regime_analysis.py`, `confidence_threshold_scan.py`, `backtest_pnl.py`, `backtest_pnl_realistic.py` |
@@ -213,14 +240,22 @@ pytest tests/test_loso_splits.py -q
 
 | 文档 / 路径 | 内容 |
 | --- | --- |
-| [REPORT.md](REPORT.md) | 研究历程、全部实验表、审计与 walk-forward 结果 |
+| [REPORT.md](REPORT.md) | meme8 研究历程、双协议主结论、审计与 walk-forward |
+| [REPORT_CATEGORY.md](REPORT_CATEGORY.md) | 五大类 × 16 币、base_eco Phase B 扩展扫描 |
+| [docs/remote_workflow.md](docs/remote_workflow.md) | 远程 Pod 训练、tmux、打包拉回 |
 | `config/default.yaml` | 默认超参与 8 币列表 |
-| `outputs/metrics/*_summary.json` | 数值以 JSON 为准（需先跑实验生成） |
+| `outputs/metricsB/metrics/` | 最新分域实验 JSON / log（需先跑实验或从远程拉回） |
 
-**指标 JSON（冻结 k=1.2, w=192）**
+**指标 JSON（meme8，冻结 k=1.2, w=192）**
 
 - 严格：`outputs/metrics/meme8_*_wf7085_label_k12_summary.json`
 - 开发：`outputs/metrics/meme8_*_loso_label_k12_summary.json`（无 `wf7085` 后缀）
 - 相关矩阵：`outputs/metrics/meme_return_correlation.json`
 
-**切勿**将开发协议 AUC（≈0.74）与严格协议 AUC（≈0.51）混报为同一「泛化能力」。
+**指标 JSON（base_eco，开发协议 Phase B）**
+
+- Phase A 汇总：`outputs/metricsB/metrics/category_kw_optimal.json`
+- Phase B 汇总：`outputs/metricsB/metrics/category_kw_extended_optimal.json`
+- 可信峰值明细：`outputs/metricsB/metrics/base_eco16_15m_w224_loso_ratio_label_k15_summary.json`
+
+**切勿**将开发协议 AUC（meme8 ≈0.74、base_eco ≈0.74）与严格协议 AUC（≈0.51）混报为同一「泛化能力」。

@@ -145,26 +145,25 @@ def cleanup_all_completed_npz(*, dry_run: bool, include_models: bool) -> int:
             continue
         prefix, rest = body.split("_loso_", 1)
         # prefix=bluechip16_15m_w208, rest=ratio_label_k12
-        if not prefix.endswith("m"):
+        # Skip per-symbol summaries (held-out token before split mode).
+        if rest.split("_", 1)[0].endswith("USDT"):
             continue
         w_part = prefix.rsplit("_w", 1)
         if len(w_part) != 2:
             continue
         category_part, w_str = w_part
-        category = category_part.replace("16", "").replace("15m", "")
-        if not category:
-            category = category_part.split("16")[0]
-        # category_part like bluechip16_15m -> category=bluechip
-        if category_part.endswith("16_15m"):
-            category = category_part[: -len("16_15m")]
+        if not category_part.endswith("16_15m"):
+            continue
+        category = category_part[: -len("16_15m")]
         try:
             window = int(w_str)
         except ValueError:
             continue
-        split_tag = rest.rsplit("_", 1)
-        if len(split_tag) != 2:
+        # rest is e.g. ratio_label_k12 or wf7085_label_k10
+        if "_label_" not in rest:
             continue
-        split, tag = split_tag
+        split, tag = rest.split("_label_", 1)
+        tag = f"label_{tag}"
         freed += cleanup_combo(
             category,
             0.0,

@@ -863,20 +863,24 @@ MOG / POPCAT / NEIRO 等严格协议复评（`scripts/holdout_coins_eval.py`）�
 
 ## 18. 分大类 LOSO（五大类 × 16 币）
 
-**升级日期**：2026-05-28  
-**设计**：按 `advice/ClassificationSuggestion.md` 推荐五类，每类 **16 个 Binance USDT** 现货对，**类内 LOSO**（15 训 / 1 测）；算法与 §1 冻结配置相同（`k=1.2`, `w=192`, MLP, calendar `wf7085`）。**不跨类池化**；与 legacy `meme8` 结论分表记录。
+**升级日期**：2026-05-28；**base_eco Phase B 完成**：2026-05-29  
+**设计**：按 `advice/ClassificationSuggestion.md` 推荐五类，每类 **16 个 Binance USDT** 现货对，**类内 LOSO**（15 训 / 1 测）；算法与 §1 冻结配置相同（MLP, calendar `wf7085` 待跑）。**不跨类池化**；与 legacy `meme8` 结论分表记录。
 
-| category_id | 中文 | 输出前缀示例 |
-| --- | --- | --- |
-| `bluechip` | 蓝筹 Meme | `bluechip16_15m_w192_loso_*` |
-| `midcap` | 中盘趋势 | `midcap16_*` |
-| `solana_fast` | Solana 高频 | `solana_fast16_*` |
-| `base_eco` | 新生态（Binance 代理） | `base_eco16_*` |
-| `micro_cap` | 超小盘（策展） | `micro_cap16_*` |
+**分域实验详情** → **[REPORT_CATEGORY.md](REPORT_CATEGORY.md)**（Phase A 五类对比 + base_eco Phase B 扩展扫描）
+
+| category_id | 中文 | Phase A interim (k,w) | AUC | Phase B |
+| --- | --- | ---: | ---: | --- |
+| `base_eco` | 新生态（Binance 代理） | 1.2 / 192 | 0.715 | ✅ 可信峰 **1.5/224 → 0.738** |
+| `bluechip` | 蓝筹 Meme | 1.2 / 128 | 0.674 | ⏸ |
+| `solana_fast` | Solana 高频 | 1.2 / 192 | 0.643 | ⏸ |
+| `midcap` | 中盘趋势 | 1.2 / 96 | 0.638 | ⏸ |
+| `micro_cap` | 超小盘（策展） | 1.2 / 96 | 0.633 | ⏸ |
+
+数据：`outputs/metricsB/metrics/`（最新）
 
 - **配置**：`config/categories.yaml`（替补说明见各类 `notes`）
 - **校验**：`python3 scripts/validate_binance_symbols.py`
 - **全量跑**：`bash scripts/run_all_categories.sh`
-- **跨类对比**：`outputs/metrics/categories_loso_comparison.json`（`scripts/category_loso_compare.py`）
+- **跨类对比**：`outputs/metricsB/metrics/categories_loso_comparison.json`（`scripts/category_loso_compare.py`）
 
-> legacy 8 币主结论（§1.1）**不变**；五大类结果待全量实验后填入本节表格。
+> legacy 8 币主结论（§1.1）**不变**；base_eco 开发协议可信峰 0.738，**严格 calendar 待验证**。

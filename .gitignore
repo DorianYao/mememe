@@ -10,6 +10,7 @@ outputs/figures/
 outputs/*.tgz
 outputs/*.gz
 outputs/**/*.tgz
+outputs/
 mememe_metrics.tgz
-advice/
+#advice/
 config/categories.resolved.yaml
