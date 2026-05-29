@@ -23,3 +23,15 @@ else
     --label-k "$K" --window-size "$W" --ablation-tag "$TAG" \
     "$@"
 fi
+
+# Free disk: each k×w combo leaves ~16 large .npz + .pt files (~15–25 GB).
+if [[ "${AUTO_CLEANUP_NPZ:-1}" == "1" ]]; then
+  split="ratio"
+  prev=""
+  for arg in "$@"; do
+    [[ "$prev" == "--split-mode" ]] && split="$arg"
+    prev="$arg"
+  done
+  python3 scripts/cleanup_disk.py --combo "$CATEGORY" "$K" "$W" "$TAG" "$split" \
+    || true
+fi

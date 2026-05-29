@@ -7,5 +7,7 @@ data/processed/
 outputs/models/
 outputs/metrics/
 outputs/figures/
+outputs/*.tgz
+outputs/**/*.tgz
 advice/
 config/categories.resolved.yaml
