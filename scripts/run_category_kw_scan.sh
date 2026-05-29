@@ -21,6 +21,7 @@ python3 scripts/check_category_data_ready.py --quiet || {
   exit 1
 }
 
+# Auto-falls back to local CSV check when Binance API returns 451 (geo-blocked pods).
 python3 scripts/validate_binance_symbols.py
 
 if [[ "$SPLIT_MODE" == "calendar" ]]; then

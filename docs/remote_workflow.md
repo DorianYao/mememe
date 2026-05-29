@@ -41,7 +41,15 @@ python3 scripts/download_all_category_data.py
 
 # 确认 41/41 就绪
 python3 scripts/check_category_data_ready.py
-python3 scripts/validate_binance_symbols.py
+python3 scripts/validate_binance_symbols.py   # API 451 时自动改用本地 CSV 校验
+```
+
+若 Pod 无法访问 `api.binance.com`（HTTP **451**），请先 **scp 传入 `data/raw/`**，再跑训练；无需能连 Binance API。也可显式：
+
+```bash
+export BINANCE_VALIDATE_OFFLINE=1
+python3 scripts/validate_binance_symbols.py --offline
+```
 ```
 
 原始 CSV 在 `data/raw/`（约几百 MB），需保留到训练结束。
