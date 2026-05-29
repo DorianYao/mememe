@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Shared runtime flags for category k×w scan scripts.
-# Override via env: BATCH_SIZE, DATALOADER_WORKERS, DEVICE, LOSO_JOBS, FEATURE_WORKERS
+# Override via env: BATCH_SIZE, DATALOADER_WORKERS, DEVICE, LOSO_JOBS, FEATURE_WORKERS, NPZ_JOBS
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-TRAIN_EXTRA_ARGS=(--fast --skip-existing --skip-plots)
+TRAIN_EXTRA_ARGS=(--fast --skip-existing)
 
 if [[ -n "${DEVICE:-}" ]]; then
   use_cuda=0
@@ -20,27 +20,16 @@ else
 fi
 
 if (( use_cuda )); then
-  batch="${BATCH_SIZE:-16384}"
+  eval "$(python3 "${ROOT}/scripts/detect_runtime.py" --shell)"
+  batch="${BATCH_SIZE:-$BATCH_DEFAULT}"
   workers="${DATALOADER_WORKERS:-0}"
-  ncpu="$(python3 "${ROOT}/scripts/effective_cpus.py" 2>/dev/null || nproc 2>/dev/null || echo 4)"
-  export LOSO_JOBS="${LOSO_JOBS:-4}"
-  if [[ -z "${FEATURE_WORKERS:-}" ]]; then
-    feat=$(( ncpu > 1 ? ncpu - 1 : 1 ))
-    (( feat > 8 )) && feat=8
-    export FEATURE_WORKERS="$feat"
-  fi
   TRAIN_EXTRA_ARGS+=(--device "$DEVICE" --batch-size "$batch" --dataloader-workers "$workers")
   TRAIN_EXTRA_ARGS+=(--feature-workers "$FEATURE_WORKERS")
-  echo "[runtime] GPU ($DEVICE) cpus=$ncpu batch=$batch workers=$workers loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS"
+  echo "[runtime] GPU ($DEVICE) ${RUNTIME_GPU} vram=${RUNTIME_VRAM_GB}GB tier=${RUNTIME_TIER} cpus=${RUNTIME_NCPU} batch=$batch loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS npz_jobs=$NPZ_JOBS"
 else
-  ncpu="$(python3 "${ROOT}/scripts/effective_cpus.py" 2>/dev/null || nproc 2>/dev/null || echo 4)"
-  export LOSO_JOBS="${LOSO_JOBS:-$(( ncpu > 2 ? ncpu / 2 : 2 ))}"
-  if [[ -z "${FEATURE_WORKERS:-}" ]]; then
-    feat=$(( ncpu > 1 ? ncpu - 1 : 1 ))
-    (( feat > 8 )) && feat=8
-    export FEATURE_WORKERS="$feat"
-  fi
+  eval "$(python3 "${ROOT}/scripts/detect_runtime.py" --shell)"
+  batch="${BATCH_SIZE:-1024}"
   TRAIN_EXTRA_ARGS+=(--dataloader-workers "${DATALOADER_WORKERS:-0}")
   TRAIN_EXTRA_ARGS+=(--feature-workers "$FEATURE_WORKERS")
-  echo "[runtime] CPU cpus=$ncpu loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS"
+  echo "[runtime] CPU tier=${RUNTIME_TIER} cpus=${RUNTIME_NCPU} loso_jobs=$LOSO_JOBS feature_workers=$FEATURE_WORKERS npz_jobs=$NPZ_JOBS"
 fi

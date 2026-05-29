@@ -108,7 +108,8 @@ def main() -> None:
     main_args, config = _parse_main_argv(main_argv)
     jobs = max(1, args.jobs)
     symbols = list(config.symbols)
-    npz_workers = max(1, min(jobs, int(os.environ.get("FEATURE_WORKERS", jobs))))
+    npz_default = int(os.environ.get("NPZ_JOBS", os.environ.get("FEATURE_WORKERS", str(jobs))))
+    npz_workers = max(1, min(npz_default, 16, len(symbols)))
 
     env = os.environ.copy()
     env["PARALLEL_GPU_JOBS"] = str(jobs)

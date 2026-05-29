@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from category_kw_compare import (
     CATEGORY_IDS,
-    KW_MATRIX,
     FIGURES_DIR,
     METRICS_DIR,
     _split_token,
@@ -19,26 +18,7 @@ from category_kw_compare import (
     _test_n,
     load_category_results,
 )
-
-# Extended peak search: k∈[1.2,2.5], w∈[192,250] (1.2:192 covered by base scan)
-EXTENDED_KW_MATRIX: list[tuple[float, int, str]] = [
-    (1.2, 208, "label_k12"),
-    (1.2, 224, "label_k12"),
-    (1.2, 240, "label_k12"),
-    (1.2, 250, "label_k12"),
-    (1.5, 208, "label_k15"),
-    (1.5, 224, "label_k15"),
-    (1.5, 240, "label_k15"),
-    (1.5, 250, "label_k15"),
-    (1.8, 224, "label_k18"),
-    (1.8, 240, "label_k18"),
-    (1.8, 250, "label_k18"),
-    (2.0, 224, "label_k20"),
-    (2.0, 240, "label_k20"),
-    (2.0, 250, "label_k20"),
-    (2.5, 240, "label_k25"),
-    (2.5, 250, "label_k25"),
-]
+from category_kw_matrix import EXTENDED_KW_MATRIX, KW_MATRIX
 
 # Minimum test samples for a "credible" peak (k=2.0@w=20 had ~33k in meme8 — too sparse)
 MIN_CREDIBLE_TEST_N = 80_000
@@ -207,6 +187,11 @@ def main() -> None:
         type=Path,
         default=METRICS_DIR / "category_kw_extended_optimal.json",
     )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Write heatmap PNG to outputs/figures/ (default: metrics JSON only).",
+    )
     args = parser.parse_args()
 
     results = load_extended_results(args.category, split_mode=args.split_mode)
@@ -234,7 +219,7 @@ def main() -> None:
     else:
         print("\ncredible peak: none yet (need more runs or all below sample threshold)")
 
-    chart = plot_extended_heatmap(args.category, results, args.split_mode)
+    chart = plot_extended_heatmap(args.category, results, args.split_mode) if args.plot else None
     if chart:
         print(f"heatmap -> {chart}")
 

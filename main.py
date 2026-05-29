@@ -20,13 +20,6 @@ from src.multi import (
     loso_processed_path,
     pooled_processed_path,
 )
-from src.plots import (
-    plot_confusion_matrix,
-    plot_loso_summary,
-    plot_model_comparison,
-    plot_roc_curves,
-    plot_training_history,
-)
 from src.train import majority_baseline, save_model, train_one_model
 
 
@@ -146,7 +139,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-plots",
         action="store_true",
-        help="Skip matplotlib figures (faster for hyperparameter scans).",
+        help="No-op (plots removed from training pipeline; kept for script compatibility).",
     )
     parser.add_argument(
         "--skip-existing",
@@ -156,7 +149,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fast",
         action="store_true",
-        help="Scan mode: --skip-plots, skip prediction CSVs, batch_size=1024 if unset.",
+        help="Scan mode: skip prediction CSVs; batch_size=1024 if unset.",
     )
     parser.add_argument(
         "--dataloader-workers",
@@ -333,7 +326,6 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
         per_symbol_cache = build_per_symbol(list(config.symbols), config)
 
     skip_artifacts = getattr(args, "fast", False)
-    skip_plots = getattr(args, "skip_plots", False) or getattr(args, "fast", False)
 
     for held in held_outs:
         print(f"\n========== LOSO  held-out: {held} ==========")
@@ -378,7 +370,6 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
                 splits,
                 config,
                 run_tag,
-                skip_plots=skip_plots,
                 skip_artifacts=skip_artifacts,
             )
             rounds[held] = metrics_per_model
@@ -389,7 +380,6 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
                 tag_base,
                 summary,
                 key=held,
-                skip_plots=skip_plots,
             )
 
     summary["features"] = features_summary
@@ -398,13 +388,6 @@ def run_loso(args: argparse.Namespace, config: ExperimentConfig) -> dict[str, ob
         aggregation = aggregate_loso(rounds, config, list(config.symbols))
         summary["loso_aggregate"] = aggregation["mean"]
         summary["loso_summary_path"] = aggregation["summary_path"]
-
-        if not skip_plots:
-            for metric in ["test_roc_auc", "test_macro_f1", "test_mcc"]:
-                plot_path = plot_loso_summary(
-                    rounds, baseline_per_round, config, metric=metric
-                )
-                summary.setdefault("loso_figures", {})[metric] = str(plot_path)
 
     return summary
 
@@ -430,7 +413,6 @@ def _train_eval_models(
     config: ExperimentConfig,
     run_tag_fn,
     *,
-    skip_plots: bool = False,
     skip_artifacts: bool = False,
 ) -> dict[str, dict[str, object]]:
     from src.tabular import (
@@ -474,8 +456,6 @@ def _train_eval_models(
                     verbose=not args.quiet,
                 )
                 save_model(model, model_name, history, train_summary, config, run_tag=tag)
-                if not skip_plots:
-                    plot_training_history(history, model_name, config, run_tag=tag)
             else:
                 model = _load_model(model_name, config, tag, device=args.device)
 
@@ -488,8 +468,6 @@ def _train_eval_models(
                 run_tag=tag,
                 skip_artifacts=skip_artifacts,
             )
-        if not skip_plots:
-            plot_confusion_matrix(metrics["confusion_matrix"], model_name, config, run_tag=tag)
         metrics_per_model[model_name] = metrics
     return metrics_per_model
 
@@ -501,18 +479,11 @@ def _emit_comparison(
     tag: str,
     summary: dict[str, object],
     key: str | None = None,
-    *,
-    skip_plots: bool = False,
 ) -> None:
     if not metrics_per_model:
         return
     comparison_csv = save_comparison(metrics_per_model, baseline, config, tag)
     artifacts = {"comparison_csv": str(comparison_csv)}
-    if not skip_plots:
-        comparison_plot = plot_model_comparison(metrics_per_model, baseline, config, tag)
-        roc_plot = plot_roc_curves(metrics_per_model, config, tag)
-        artifacts["comparison_plot"] = str(comparison_plot)
-        artifacts["roc_plot"] = str(roc_plot)
     if key:
         summary.setdefault("artifacts", {})[key] = artifacts
         summary.setdefault("evaluate", {})[key] = {

@@ -47,12 +47,14 @@ else
   SPLIT_TOKEN="ratio"
 fi
 
-# Map k -> ablation tag
+# Map k -> ablation tag (k∈[1.0,2.5] for five-category scans)
 case "$BEST_K" in
-  0.5) TAG="label_k05" ;;
-  0.7) TAG="label_k07" ;;
   1.0) TAG="label_k10" ;;
   1.2) TAG="label_k12" ;;
+  1.5) TAG="label_k15" ;;
+  1.8) TAG="label_k18" ;;
+  2.0) TAG="label_k20" ;;
+  2.5) TAG="label_k25" ;;
   *) echo "Unsupported k=$BEST_K"; exit 1 ;;
 esac
 
@@ -62,7 +64,7 @@ mkdir -p "$(dirname "$LOG")"
 declare -a WINDOWS=()
 for delta in -32 -16 16 32; do
   w=$((BEST_W + delta))
-  if (( w >= 20 && w <= 256 )); then
+  if (( w >= 96 && w <= 288 )); then
     WINDOWS+=("$w")
   fi
 done

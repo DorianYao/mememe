@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Extended k×w peak search for one category (k∈[1.2,2.5], w∈[192,250]).
-# Run after the base 9-combo pruned scan (run_category_kw_scan.sh).
+# Extended k×w peak search for one category (k∈[1.0,2.5], w up to 288).
+# Matrix: scripts/category_kw_matrix.py extended
+# Run after the base scan (run_category_kw_scan.sh).
 #
 # Usage:
 #   bash scripts/run_category_kw_extended.sh bluechip
@@ -34,25 +35,7 @@ fi
 LOG="${ROOT}/outputs/metrics/${CATEGORY}_kw_extended_${SPLIT_TOKEN}.log"
 mkdir -p "$(dirname "$LOG")"
 
-# k:w:tag — pruned grid toward k=2.5 / w=250 (skip 1.2:192 from base scan)
-COMBOS=(
-  "1.2:208:label_k12"
-  "1.2:224:label_k12"
-  "1.2:240:label_k12"
-  "1.2:250:label_k12"
-  "1.5:208:label_k15"
-  "1.5:224:label_k15"
-  "1.5:240:label_k15"
-  "1.5:250:label_k15"
-  "1.8:224:label_k18"
-  "1.8:240:label_k18"
-  "1.8:250:label_k18"
-  "2.0:224:label_k20"
-  "2.0:240:label_k20"
-  "2.0:250:label_k20"
-  "2.5:240:label_k25"
-  "2.5:250:label_k25"
-)
+mapfile -t COMBOS < <(python3 "${ROOT}/scripts/category_kw_matrix.py" extended)
 
 echo "=== ${CATEGORY} extended k×w peak search (split=${SPLIT_MODE}) $(date -Iseconds) ===" | tee "$LOG"
 

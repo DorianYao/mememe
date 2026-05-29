@@ -388,7 +388,7 @@ def build_all_loso_npz(
         print("[multi] all LOSO npz files exist", flush=True)
         return cache
 
-    workers = max(1, min(int(max_workers or 1), len(pending)))
+    workers = max(1, min(int(max_workers or 1), len(pending), 16))
     if refresh:
         for sym in pending:
             loso_processed_path(config, sym).unlink(missing_ok=True)

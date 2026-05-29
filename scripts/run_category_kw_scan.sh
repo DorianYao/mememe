@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Per-category pruned k×window scan (MLP only, 16-coin LOSO).
+# Matrix: scripts/category_kw_matrix.py base  (k∈{1.0,1.2}, w∈{96,128,192})
+#
 # Usage:
 #   bash scripts/run_category_kw_scan.sh bluechip              # tuning (ratio split)
 #   bash scripts/run_category_kw_scan.sh bluechip calendar     # strict validation
@@ -32,18 +34,7 @@ fi
 LOG="${ROOT}/outputs/metrics/${CATEGORY}_kw_scan_${SPLIT_TOKEN}.log"
 mkdir -p "$(dirname "$LOG")"
 
-# k:w:tag — same pruned matrix as meme8 (REPORT §2.6) + w=192
-COMBOS=(
-  "0.5:40:label_k05"
-  "0.5:80:label_k05"
-  "0.7:40:label_k07"
-  "0.7:80:label_k07"
-  "1.0:40:label_k10"
-  "1.0:80:label_k10"
-  "1.0:96:label_k10"
-  "1.2:96:label_k12"
-  "1.2:192:label_k12"
-)
+mapfile -t COMBOS < <(python3 "${ROOT}/scripts/category_kw_matrix.py" base)
 
 echo "=== ${CATEGORY} k×window scan (split=${SPLIT_MODE}) started $(date -Iseconds) ===" | tee "$LOG"
 

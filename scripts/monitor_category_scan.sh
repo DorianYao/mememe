@@ -7,12 +7,7 @@ SPLIT="${2:-ratio}"
 POLL="${POLL_SEC:-90}"
 LOG="${ROOT}/outputs/metrics/${CATEGORY}_kw_scan_${SPLIT}.log"
 
-COMBOS=(
-  "0.5:40:label_k05" "0.5:80:label_k05"
-  "0.7:40:label_k07" "0.7:80:label_k07"
-  "1.0:40:label_k10" "1.0:80:label_k10" "1.0:96:label_k10"
-  "1.2:96:label_k12" "1.2:192:label_k12"
-)
+mapfile -t COMBOS < <(python3 "${ROOT}/scripts/category_kw_matrix.py" base)
 
 seen_file="${ROOT}/outputs/metrics/.${CATEGORY}_kw_${SPLIT}_seen"
 touch "$seen_file"

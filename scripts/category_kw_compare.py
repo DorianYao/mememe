@@ -4,24 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 METRICS_DIR = PROJECT_ROOT / "outputs" / "metrics"
 FIGURES_DIR = PROJECT_ROOT / "outputs" / "figures"
 
-# Same pruned matrix as meme8 (REPORT §2.6) + w=192 anchor for k=1.2
-KW_MATRIX: list[tuple[float, int, str]] = [
-    (0.5, 40, "label_k05"),
-    (0.5, 80, "label_k05"),
-    (0.7, 40, "label_k07"),
-    (0.7, 80, "label_k07"),
-    (1.0, 40, "label_k10"),
-    (1.0, 80, "label_k10"),
-    (1.0, 96, "label_k10"),
-    (1.2, 96, "label_k12"),
-    (1.2, 192, "label_k12"),
-]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from category_kw_matrix import KW_MATRIX
 
 CATEGORY_IDS = ("bluechip", "midcap", "solana_fast", "base_eco", "micro_cap")
 
@@ -182,6 +174,11 @@ def main() -> None:
         type=Path,
         default=METRICS_DIR / "category_kw_optimal.json",
     )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Write heatmap PNG to outputs/figures/ (default: metrics JSON only).",
+    )
     args = parser.parse_args()
 
     cats = [args.category] if args.category else list(CATEGORY_IDS)
@@ -203,7 +200,7 @@ def main() -> None:
             print("  → no results yet\n")
             optimal_rows.append({"category_id": cat, "status": "missing"})
 
-    chart = plot_heatmap(all_results, args.split_mode)
+    chart = plot_heatmap(all_results, args.split_mode) if args.plot else None
     if chart:
         print(f"heatmap -> {chart}")
 

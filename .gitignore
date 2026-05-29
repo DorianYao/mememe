@@ -9,5 +9,6 @@ outputs/metrics/
 outputs/figures/
 outputs/*.tgz
 outputs/**/*.tgz
+mememe_metrics.tgz
 advice/
 config/categories.resolved.yaml

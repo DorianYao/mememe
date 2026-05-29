@@ -70,8 +70,8 @@
 
 | 阶段 | split | 矩阵 | 脚本 |
 | --- | --- | --- | --- |
-| **A 基线精扫** | ratio（开发） | 9 组：$k \in \{0.5,0.7,1.0,1.2\}$，$w \in \{40,80,96,192\}$ 剪枝 | `scripts/run_category_kw_scan.sh` |
-| **B 扩展峰值** | ratio | 16 组：$k \in \{1.2,1.5,1.8,2.0,2.5\}$，$w \in \{208,224,240,250\}$ 剪枝 | `scripts/run_category_kw_extended.sh` |
+| **A 基线精扫** | ratio（开发） | **5 组**：$k \in \{1.0,1.2\}$，$w \in \{96,128,192\}$ 剪枝 | `scripts/run_category_kw_scan.sh` |
+| **B 扩展峰值** | ratio | **22 组**：$k \in \{1.0,1.2,1.5,1.8,2.0,2.5\}$，$w \in \{192,208,\ldots,288\}$ 剪枝 | `scripts/run_category_kw_extended.sh` |
 | **C 严格验证** | calendar wf7085 | 各类冻结 $(k,w)$ 后单点复跑 | 待 A/B 完成后 |
 
 **可信峰值规则**（`scripts/category_kw_extended_compare.py`）：
