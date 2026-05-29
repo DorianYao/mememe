@@ -7,6 +7,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck source=detect_train_args.sh
+source "${ROOT}/scripts/detect_train_args.sh"
 
 CATEGORY="${1:?category id required: bluechip|midcap|solana_fast|base_eco|micro_cap}"
 SPLIT_MODE="${2:-ratio}"
@@ -70,7 +72,7 @@ for combo in "${COMBOS[@]}"; do
   echo ">>> category=$CATEGORY k=$k w=$w tag=$tag $(date -Iseconds)" | tee -a "$LOG"
   python3 main.py --mode loso --category "$CATEGORY" --stage all --model mlp \
     --label-k "$k" --window-size "$w" --ablation-tag "$tag" \
-    --fast --skip-existing --dataloader-workers 0 \
+    "${TRAIN_EXTRA_ARGS[@]}" \
     "${SPLIT_ARGS[@]}" "$@" \
     2>&1 | tee -a "$LOG"
 done
