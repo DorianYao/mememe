@@ -21,9 +21,14 @@ KW_MATRIX: list[tuple[float, int, str]] = [
     (1.2, 192, "label_k12"),
 ]
 
-# Phase B — 22 pruned combos (k=1.0–2.5, w=192–288; skip duplicates with Phase A)
+# Phase B — k∈[1.2,2.5] peak search (w=192–288; skip duplicates with Phase A)
+# k@192 fills the gap between Phase-A best window and high-w extended grid.
 EXTENDED_KW_MATRIX: list[tuple[float, int, str]] = [
     (1.0, 192, "label_k10"),
+    (1.5, 192, "label_k15"),
+    (1.8, 192, "label_k18"),
+    (2.0, 192, "label_k20"),
+    (2.5, 192, "label_k25"),
     (1.2, 208, "label_k12"),
     (1.2, 224, "label_k12"),
     (1.2, 240, "label_k12"),

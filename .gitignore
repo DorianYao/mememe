@@ -8,6 +8,7 @@ outputs/models/
 outputs/metrics/
 outputs/figures/
 outputs/*.tgz
+outputs/*.gz
 outputs/**/*.tgz
 mememe_metrics.tgz
 advice/

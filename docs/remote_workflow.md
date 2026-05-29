@@ -79,13 +79,32 @@ rm -f data/processed/bluechip16_15m_w208_loso_*_ratio_label_k12.npz
 
 ## 3. 开始训练
 
-### 3a. Bluechip extended k×w 峰值搜索（当前主线）
+### 3a. base_eco extended k×w 峰值搜索（当前主线）
+
+Phase A 已完成（k∈{1.0,1.2}, w∈{96,128,192}）；当前最优 **k=1.2, w=192, AUC≈0.715**。
+
+Phase B 补充 **k∈[1.2,2.5]**：在 w=192 上扫 k=1.5/1.8/2.0/2.5，并向 w=208–288 延伸（矩阵见 `scripts/category_kw_matrix.py extended`，共 26 combo）。
 
 ```bash
 source .venv/bin/activate
 cd /workspace/mememe
 
 # 自动：GPU batch=16384、LOSO_JOBS=4、特征 8 线程、无图片输出
+bash scripts/run_category_kw_extended.sh base_eco
+```
+
+断点续跑：已有完整 `*_summary.json`（16 轮）的 combo 会自动 `[skip]`。
+
+汇总与可信峰值：
+
+```bash
+python3 scripts/category_kw_extended_compare.py --category base_eco
+python3 scripts/category_kw_extended_compare.py --category base_eco --plot
+```
+
+### 3a-alt. Bluechip extended k×w 峰值搜索
+
+```bash
 bash scripts/run_category_kw_extended.sh bluechip
 ```
 
@@ -201,9 +220,9 @@ python3 scripts/check_category_data_ready.py
 python3 scripts/cleanup_disk.py --npz-completed
 
 tmux new -s kw
-bash scripts/run_category_kw_extended.sh bluechip
+bash scripts/run_category_kw_extended.sh base_eco
 
 # 完成后
-python3 scripts/category_kw_extended_compare.py --category bluechip
+python3 scripts/category_kw_extended_compare.py --category base_eco
 tar czf mememe_metrics.tgz outputs/metrics/
 ```
