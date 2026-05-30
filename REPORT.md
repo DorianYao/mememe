@@ -3,7 +3,7 @@
 **项目**：15 分钟 K 线下一根涨跌二分类（MLP + 1D CNN）  
 **核心实验**：8 个 Meme 币 Leave-One-Symbol-Out（LOSO）跨币种泛化  
 **数据区间**：Binance 现货，各币约 720 天 × 15m  
-**报告更新**：2026-05-28（含 **严格 calendar walk-forward** 全 8 币、TURBO 外部确认、收益相关矩阵、论文 `main.tex` 双协议叙事）
+**报告更新**：2026-05-30（**严格协议复现** `k=1.2,w=192`；外部确认改为 **NEIRO / PNUT**，**排除 TRUMP**；2026-05-28 版含 TURBO 外部点、收益相关矩阵、论文 `main.tex`）
 
 > 完整实验日志与 JSON 汇总见 `outputs/metrics/`；本报告为 **研究历程 + 全部实验结果** 的单一入口。  
 > **跨域泛化主结论以严格协议为准**；开发协议 AUC 仅作探索与对照。
@@ -19,8 +19,9 @@
 | 协议 | MLP 8 币平均 AUC | 说明 |
 | --- | ---: | --- |
 | **开发**（ratio-LOSO，held-out 全时段） | **0.7434** ± 0.0720 | 超参选定、消融、regime 分层、统计检验（$p<0.001$） |
-| **严格**（calendar walk-forward，仅未来 15%） | **0.5100** ± 0.0141 | **主结论**：向前外推 ≈ 随机 |
-| 外部确认 TURBO（未参与 $k$/$w$ 扫描） | **≈ 0.497** | 严格协议 |
+| **严格**（calendar walk-forward，仅未来 15%） | **0.5084** ± 0.0052（2026-05-30 复现；历史跑 **0.5100** ± 0.0141） | **主结论**：向前外推 ≈ 随机 |
+| 外部确认 NEIRO / PNUT（未参与 $k$/$w$ 扫描） | **0.496** / **0.509**（均值 **0.502**） | 严格协议；**不用 TRUMP**（政治叙事） |
+| 外部确认 TURBO（历史，同上协议） | **≈ 0.497** | 严格协议，2026-05-28 |
 
 **协议落差约 −23.3 pp**；泄漏审计 **PASS**（无 future-bar 泄露）。落差归因于 **共享日历区间下的板块共动（共享市场状态）**，而非代码泄漏。8 币 15m 收益时间对齐后：平均配对相关 **0.725**（高波动子样本 **0.782**）。
 
@@ -313,31 +314,42 @@ python3 main.py --mode loso --stage all --model mlp \
 
 **结果（MLP，8 轮）**：
 
-| 指标 | 值 |
-| --- | ---: |
-| 平均 ROC-AUC | **0.5100** ± 0.0141 |
-| 平均 MCC | 0.0085 |
-| 单币范围 | 0.495 – 0.533 |
-
-| Held-out | AUC | n_test |
+| 指标 | 2026-05-30 复现 | 2026-05-28 历史 |
 | --- | ---: | ---: |
-| SHIBUSDT | 0.5330 | 2261 |
-| WIFUSDT | 0.5247 | 1559 |
-| PEPEUSDT | 0.5216 | 2092 |
-| BOMEUSDT | 0.5120 | 2174 |
-| DOGEUSDT | 0.4977 | 2008 |
-| FLOKIUSDT | 0.4993 | 2175 |
-| BONKUSDT | 0.4960 | 2205 |
-| 1000SATSUSDT | 0.4946 | 2010 |
+| 平均 ROC-AUC | **0.5084** ± 0.0052 | 0.5100 ± 0.0141 |
+| 平均 MCC | 0.0147 | 0.0085 |
+| 单币 AUC 范围 | 0.500 – 0.519 | 0.495 – 0.533 |
+
+| Held-out | AUC（复现） | n_test | AUC（历史） |
+| --- | ---: | ---: | ---: |
+| PEPEUSDT | 0.5185 | 2093 | 0.5216 |
+| SHIBUSDT | 0.5117 | 2261 | 0.5330 |
+| BOMEUSDT | 0.5104 | 2176 | 0.5120 |
+| FLOKIUSDT | 0.5086 | 2175 | 0.4993 |
+| BONKUSDT | 0.5083 | 2204 | 0.4960 |
+| 1000SATSUSDT | 0.5056 | 2011 | 0.4946 |
+| WIFUSDT | 0.5045 | 1556 | 0.5247 |
+| DOGEUSDT | 0.4997 | 2010 | 0.4977 |
+
+汇总 JSON：`outputs/metrics/meme8_*_wf7085_label_k12_summary.json`（复现已写回）。
 
 **对照**：
 
 | 模型 | DOGE 严格 AUC |
 | --- | ---: |
-| MLP | 0.4977 |
-| XGBoost | 0.5170 |
+| MLP | 0.4997（复现） / 0.4977（历史） |
+| XGBoost | 0.5170（历史） |
 
-**外部确认**：TURBOUSDT（9 币宇宙 LOSO，未参与调参）AUC **≈ 0.497**（`holdout_confirm_k12`）。
+**外部确认（严格协议，冻结 $k{=}1.2,w{=}192$，8 币训练 + 1 币 held-out）**：
+
+| Held-out | 选取理由 | AUC | MCC | n_test |
+| --- | --- | ---: | ---: | ---: |
+| **NEIROUSDT** | 社区狗 meme、高波动散户盘（与 PEPE/FLOKI 同类） | **0.4956** | −0.024 | 2075 |
+| **PNUTUSDT** | 病毒社区 meme、Solana 高投机（与 BONK/WIF 同类） | **0.5088** | 0.012 | 1804 |
+| TURBOUSDT（历史） | AI 叙事 meme | ≈ 0.497 | — | — |
+| ~~TRUMPUSDT~~ | **不采用**：政治事件驱动，与 legacy 8 币微观结构不一致 | — | — | — |
+
+外部汇总：`outputs/metrics/holdout_coins_eval.json`。复现命令见 §15.4。
 
 **机制证据**：`scripts/paper_mechanism_figures.py` → 收益相关矩阵（全样本 0.725；高波动 0.782）；`paper/figures/loso_protocol_timeline.png`。
 
@@ -658,10 +670,27 @@ close→close 成交，往返手续费 20 bps，等权 concurrent。上界参考
 ### 15.4 复现命令
 
 ```bash
+# 严格协议主结论（冻结 k=1.2, w=192；WSL 建议 --dataloader-workers 0）
+python3 main.py --mode loso --category meme8 --stage all --model mlp \
+  --label-k 1.2 --window-size 192 --split-mode calendar --ablation-tag label_k12 \
+  --fast --skip-plots --dataloader-workers 0
+
+# 外部 holdout（8 币训练池 + 1 币测；勿用 TRUMPUSDT）
+for H in NEIROUSDT PNUTUSDT; do
+  python3 main.py --mode loso --model mlp \
+    --symbols "DOGEUSDT,SHIBUSDT,PEPEUSDT,WIFUSDT,BONKUSDT,FLOKIUSDT,BOMEUSDT,1000SATSUSDT,$H" \
+    --held-out "$H" --label-k 1.2 --window-size 192 --split-mode calendar \
+    --ablation-tag holdout_confirm_k12 --stage all --fast --dataloader-workers 0
+done
+
 # LOSO baseline
 python3 main.py --mode loso --stage all --model both
 
-# 当前最优 AUC（k=1.2, w=96）
+# 开发协议对照（k=1.2, w=192）
+python3 main.py --mode loso --category meme8 --stage all --model mlp \
+  --label-k 1.2 --window-size 192 --ablation-tag label_k12
+
+# 历史精扫峰值（k=1.2, w=96）
 python3 main.py --mode loso --stage all --model mlp \
   --label-k 1.2 --window-size 96 --ablation-tag label_k12
 
@@ -710,7 +739,7 @@ python3 scripts/leakage_audit.py --window 192 --label-k 1.2
 2. **严格 walk-forward 已完成**（§2.10）：主结论 AUC ≈ 0.51；开发协议回测仍非在线重训场景。
 3. 概率未做 calibration（见 §17.4）。
 4. Regime 分层仅在 **开发协议** pooled 上完成（§2.11）；严格协议下未分 regime。
-5. 仅 8 meme 币 + TURBO 外部点；MOG/POPCAT/NEIRO 待扩展（§17.3）。
+5. 严格协议外部点：NEIRO / PNUT（2026-05-30）+ 历史 TURBO；**TRUMP 不作为同类外部币**；MOG/POPCAT 待 Binance 数据（§17.3）。
 6. k=1.2 样本 ~110k，开发协议 std(AUC)≈0.072 偏高。
 7. w=192 MLP 输入 2880 维，未做参数量对齐消融。
 8. CNN / Transformer 未再投入（CNN 已证伪于本任务）。
@@ -765,11 +794,13 @@ python3 scripts/leakage_audit.py --window 96 --label-k 1.2   # 可选：对照�
 
 ### 17.2 ~~严格 Walk-forward LOSO~~ ✅ 已完成
 
-8 币 MLP 均值 AUC **0.510**；TURBO 外部确认 **≈0.50**。实现：`--split-mode calendar`；测试 `tests/test_loso_splits.py`。
+8 币 MLP 严格均值 AUC **≈0.508–0.510**；NEIRO / PNUT 外部确认 **≈0.50**（2026-05-30 复现）。实现：`--split-mode calendar`；测试 `tests/test_loso_splits.py`。
 
-### 17.3 第一优先级：外部确认币扩展
+### 17.3 ~~外部确认币扩展~~ ✅ 已补 NEIRO / PNUT（2026-05-30）
 
-MOG / POPCAT / NEIRO 等严格协议复评（`scripts/holdout_coins_eval.py`）。
+- **已完成**：NEIRO、PNUT 严格 calendar holdout（`holdout_confirm_k12`）；与 8 币内 LOSO 结论一致（≈ 随机）。
+- **明确排除**：TRUMP（政治叙事，不宜与 legacy 8 币并列作外部确认）。
+- **待扩展**：MOG / POPCAT（需确认 Binance USDT 现货与 720d CSV）。
 
 ### 17.4 第二优先级：概率校准（Probability Calibration）
 
@@ -855,7 +886,8 @@ MOG / POPCAT / NEIRO 等严格协议复评（`scripts/holdout_coins_eval.py`）�
 
 *数值以 `outputs/metrics/*_summary.json` 为准。*
 
-- **严格主结论**：`meme8_*_wf7085_label_k12_summary.json`（AUC ≈ 0.510）
+- **严格主结论**：`meme8_*_wf7085_label_k12_summary.json`（复现 AUC ≈ **0.508**；历史 ≈ 0.510）
+- **外部 holdout**：`holdout_coins_eval.json`；`meme9_*_holdout_confirm_k12_mlp_metrics.json`
 - **开发对照**：`meme8_*_loso_label_k12_summary.json` 或 `*_w192_loso_*_label_k12_*`（AUC ≈ 0.743）
 - **相关矩阵**：`outputs/metrics/meme_return_correlation.json`
 

@@ -8,7 +8,8 @@
 | --- | ---: | --- |
 | **开发协议**（ratio-LOSO，held-out **全时段**） | AUC **0.743** ± 0.072 | 超参探索、消融、机制分析；**非**跨域泛化主结论 |
 | **严格协议**（calendar walk-forward，仅测 **>85% 未来**） | AUC **0.510** ± 0.014 | **主结论**：向前外推 ≈ 随机 |
-| 外部确认（TURBO，未参与调参） | AUC **≈ 0.497** | 支持严格协议结论 |
+| 外部确认（NEIRO / PNUT，未参与调参） | AUC **0.496 / 0.509** | 严格协议；**不用 TRUMP**（政治叙事） |
+| 外部确认 TURBO（历史） | AUC **≈ 0.497** | 2026-05-28 |
 
 **分域进展**（[REPORT_CATEGORY.md](REPORT_CATEGORY.md)）：五大类 × 16 币 Phase A 已完成；**base_eco Phase B 扩展扫描已完成**。开发协议可信峰值 **k=1.5, w=224 → AUC 0.738**（严格 calendar 待验证）。
 
@@ -231,8 +232,7 @@ pytest tests/test_loso_splits.py -q
 **开发宇宙**（`config/default.yaml`）：  
 `DOGEUSDT`, `SHIBUSDT`, `PEPEUSDT`, `WIFUSDT`, `BONKUSDT`, `FLOKIUSDT`, `BOMEUSDT`, `1000SATSUSDT`
 
-**外部 holdout**（`scripts/holdout_coins_eval.py` 默认）：  
-`TURBOUSDT`, `MOGUSDT`, `POPCATUSDT`, `NEIROUSDT`（可用 `--holdout-symbols` 覆盖）
+**外部 holdout**（与 legacy 8 币同类、**非**政治叙事）：推荐 `NEIROUSDT`, `PNUTUSDT`；历史曾用 `TURBOUSDT`。**勿用 `TRUMPUSDT`** 作 8 币外部确认。脚本默认仍为 `TURBOUSDT`, `MOGUSDT`, `POPCATUSDT`, `NEIROUSDT`（`--holdout-symbols` 可覆盖）。
 
 ---
 
