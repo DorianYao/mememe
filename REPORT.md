@@ -843,6 +843,22 @@ python3 scripts/leakage_audit.py --window 96 --label-k 1.2   # 可选：对照�
 
 ---
 
+## 18. 论文收尾状态（2026-05-31）
+
+| 编号 | 任务 | 状态 |
+| ---: | --- | --- |
+| A1 | 五类 strict spot-check（4 类） | **取消**（外推 ≈0.51，不算力重跑） |
+| A2 | 泛化矩阵 + Fig3 | ✅ `categories_paper_matrix.json` |
+| A3 | 机制图 + 双协议 Fig2 | ✅ `paper/figures/` |
+| A4 | 严格统计检验 | ✅ base_eco + meme8 JSON |
+| B | 论文初稿 | ✅ `paper/main.tex` |
+| C | 时间衰减权重附录 | ✅ AUC **0.521** vs flat **0.508**（+$1.3 pp，无实质改善） |
+| D | 其余四类 Phase B / 实战系统 | **暂停** |
+
+复现：`python3 scripts/build_category_paper_matrix.py`；`python3 scripts/paper_mechanism_figures.py`；`python3 scripts/walk_forward_loso_compare.py`。
+
+---
+
 ## 18. 结论
 
 本项目完整记录了从 **BTC 单币 ~0.54 AUC** 到 **开发协议 LOSO 0.743** 的探索路径，并通过 **严格 calendar walk-forward** 将跨域泛化主结论修正为 **AUC ≈ 0.51（接近随机）**。

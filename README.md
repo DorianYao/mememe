@@ -11,7 +11,12 @@
 | 外部确认（NEIRO / PNUT，未参与调参） | AUC **0.496 / 0.509** | 严格协议；**不用 TRUMP**（政治叙事） |
 | 外部确认 TURBO（历史） | AUC **≈ 0.497** | 2026-05-28 |
 
-**分域进展**（[REPORT_CATEGORY.md](REPORT_CATEGORY.md)）：五大类 × 16 币 Phase A 已完成；**base_eco Phase B 扩展扫描已完成**。开发协议可信峰值 **k=1.5, w=224 → AUC 0.738**（严格 calendar 待验证）。
+**分域进展**（[REPORT_CATEGORY.md](REPORT_CATEGORY.md)）：五大类 × 16 币 Phase A 已完成；**base_eco Phase B + 严格验证已完成**（严格 AUC **0.511**）。其余四类 strict **未重跑**（由 meme8/base_eco 先例外推 ≈0.51）。论文产物见 `paper/main.tex`、`paper/figures/`。
+
+| 五类 strict（2026-05-31） | 说明 |
+| --- | --- |
+| base_eco | **实测** 0.511（k=1.5,w=224） |
+| bluechip / midcap / solana_fast / micro_cap | **外推** ≈0.51（不另跑 16 轮 LOSO） |
 
 泄漏审计 **PASS**（无 future-bar 泄露）；开发协议高分主要来自 **训练池与 held-out 共享日历区间**（共享市场状态），而非实现错误。详见 **[REPORT.md](REPORT.md)** 与 **[REPORT_CATEGORY.md](REPORT_CATEGORY.md)**。
 

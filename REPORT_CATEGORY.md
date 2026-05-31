@@ -307,12 +307,31 @@ python3 scripts/category_kw_extended_compare.py --category base_eco --plot
 
 ---
 
-## 7. 下一步（规划退出后）
+## 7. 论文收尾（2026-05-31）
 
-1. ~~base_eco 严格 calendar + holdout~~ → **已完成，未通过**。
-2. ~~四组配置 PnL / τ~~ → **已完成**（`scripts/run_pnl_finish.sh`；产物见 §8.3）。
-3. **暂停** GeminiAdvice 实战系统与其余四类 Phase B（除非改研究问题）。
-4. 磁盘维护：combo 完成后执行 `python3 scripts/cleanup_disk.py --npz-completed`（本次释放 **~120GB** `.npz`）。
+| 任务 | 状态 | 产物 |
+| --- | --- | --- |
+| 五类 strict spot-check（4 类 × 16 轮） | **取消** | 由 meme8/base_eco 实测外推 ≈0.51 |
+| 泛化矩阵 dev vs strict | ✅ | `outputs/metrics/categories_paper_matrix.json`，Fig3 |
+| 机制图 / 双协议图 | ✅ | `paper/figures/` |
+| 严格统计检验 | ✅ | `statistical_significance_*_strict.json` |
+| 论文初稿 | ✅ | `paper/main.tex` |
+| 时间衰减权重（附录） | ✅ | AUC 0.521 vs flat 0.508（+$1.3 pp） |
+
+**结论**：严格 + holdout 与 meme8 一致，**无法声称跨域可交易 α**；开发协议 PnL 为正 **不满足**规划三重通过标准 → **转向** [备用研究方向建议.md](advice/备用研究方向建议.md)。
+
+### 7.1 五类 strict 汇总（实测 + 外推）
+
+| 类别 | 开发 AUC（Phase A） | 严格 AUC | 来源 |
+| --- | ---: | ---: | --- |
+| base_eco | 0.715–0.738 | **0.511** | 实测（k=1.5,w=224 wf7085） |
+| bluechip | 0.674 | ≈0.510 | 外推 |
+| solana_fast | 0.643 | ≈0.510 | 外推 |
+| midcap | 0.638 | ≈0.510 | 外推 |
+| micro_cap | 0.633 | ≈0.510 | 外推 |
+| meme8（对照） | 0.743 | **0.508** | REPORT 复现 |
+
+汇总 JSON：`outputs/metrics/categories_paper_matrix.json`
 
 ---
 

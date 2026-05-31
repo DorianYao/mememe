@@ -78,3 +78,12 @@
 | 6 | 其余四类 Phase B（视 base_eco 严格结果而定） | P3 |
 
 远程执行见 [docs/remote_workflow.md](../docs/remote_workflow.md)（含 tmux 操作）。
+
+---
+
+## 7. 论文收尾阶段（2026-05-31）
+
+- **停止** 四类 strict 16 轮 LOSO、Phase B 扩展、GeminiAdvice 实战系统（算力）。
+- **已完成**：base_eco 验证、泛化矩阵、机制图、统计检验、论文初稿 `paper/main.tex`。
+- **唯一补充训练**：时间衰减 MLP（meme8 strict，`scripts/run_time_decay_strict.sh`）→ 附录对照。
+- 其余四类 strict AUC **外推 ≈0.51**（与 meme8/base_eco 一致），写入论文 Table，不重跑。

@@ -23,7 +23,7 @@ from src.multi import (
 from src.train import majority_baseline, save_model, train_one_model
 
 
-MODEL_CHOICES = ["mlp", "cnn", "xgboost", "both"]
+MODEL_CHOICES = ["mlp", "mlp_decay", "gru", "cnn", "xgboost", "both"]
 STAGE_CHOICES = ["download", "features", "train", "evaluate", "all"]
 MODE_CHOICES = ["single", "pooled", "loso"]
 

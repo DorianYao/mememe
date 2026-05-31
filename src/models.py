@@ -6,6 +6,26 @@ import torch
 from torch import nn
 
 
+def _mlp_trunk(
+    input_dim: int,
+    hidden_dims: Iterable[int],
+    dropout: float,
+) -> tuple[nn.Sequential, int]:
+    layers: list[nn.Module] = []
+    in_dim = input_dim
+    for hidden_dim in hidden_dims:
+        layers.extend(
+            [
+                nn.Linear(in_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+            ]
+        )
+        in_dim = hidden_dim
+    return nn.Sequential(*layers), in_dim
+
+
 class MLPClassifier(nn.Module):
     """方案 1：把 (window, features) 拉平后过几层 MLP，输出涨跌 logit。"""
 
@@ -20,21 +40,8 @@ class MLPClassifier(nn.Module):
         self.window_size = window_size
         self.num_features = num_features
         input_dim = window_size * num_features
-
-        layers: list[nn.Module] = []
-        in_dim = input_dim
-        for hidden_dim in hidden_dims:
-            layers.extend(
-                [
-                    nn.Linear(in_dim, hidden_dim),
-                    nn.BatchNorm1d(hidden_dim),
-                    nn.ReLU(),
-                    nn.Dropout(dropout),
-                ]
-            )
-            in_dim = hidden_dim
-        layers.append(nn.Linear(in_dim, 1))
-        self.net = nn.Sequential(*layers)
+        trunk, out_dim = _mlp_trunk(input_dim, hidden_dims, dropout)
+        self.net = nn.Sequential(trunk, nn.Linear(out_dim, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.ndim != 3:
@@ -43,6 +50,79 @@ class MLPClassifier(nn.Module):
             )
         flat = x.reshape(x.size(0), -1)
         return self.net(flat).squeeze(-1)
+
+
+class MLPTimeDecayClassifier(nn.Module):
+    """Flatten with exponential time decay (recent bars weighted higher)."""
+
+    def __init__(
+        self,
+        window_size: int,
+        num_features: int,
+        hidden_dims: Iterable[int] = (256, 128, 64),
+        dropout: float = 0.3,
+        time_decay_gamma: float = 0.95,
+    ) -> None:
+        super().__init__()
+        self.window_size = window_size
+        self.num_features = num_features
+        weights = time_decay_gamma ** torch.arange(
+            window_size - 1, -1, -1, dtype=torch.float32
+        )
+        weights = weights / weights.sum()
+        self.register_buffer("time_weights", weights)
+
+        input_dim = window_size * num_features
+        trunk, out_dim = _mlp_trunk(input_dim, hidden_dims, dropout)
+        self.net = nn.Sequential(trunk, nn.Linear(out_dim, 1))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 3:
+            raise ValueError(
+                f"MLPTimeDecayClassifier expects (batch, window, features); "
+                f"got {tuple(x.shape)}"
+            )
+        w = self.time_weights.view(1, self.window_size, 1)
+        weighted = x * w
+        flat = weighted.reshape(x.size(0), -1)
+        return self.net(flat).squeeze(-1)
+
+
+class GRUClassifier(nn.Module):
+    """Single-layer GRU + MLP head (~109k params at w=192, F=15)."""
+
+    def __init__(
+        self,
+        window_size: int,
+        num_features: int,
+        hidden_dim: int = 64,
+        dropout: float = 0.3,
+    ) -> None:
+        super().__init__()
+        self.window_size = window_size
+        self.num_features = num_features
+        self.gru = nn.GRU(
+            input_size=num_features,
+            hidden_size=hidden_dim,
+            num_layers=1,
+            batch_first=True,
+        )
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 3:
+            raise ValueError(
+                f"GRUClassifier expects (batch, window, features); got {tuple(x.shape)}"
+            )
+        out, _ = self.gru(x)
+        last = out[:, -1, :]
+        return self.head(last).squeeze(-1)
 
 
 class CNN1DClassifier(nn.Module):
@@ -115,6 +195,22 @@ def build_model(name: str, window_size: int, num_features: int, config) -> nn.Mo
             hidden_dims=tuple(config.mlp_hidden),
             dropout=config.dropout,
         )
+    if name in {"mlp_decay", "mlp_time_decay"}:
+        gamma = float(getattr(config, "time_decay_gamma", 0.95))
+        return MLPTimeDecayClassifier(
+            window_size=window_size,
+            num_features=num_features,
+            hidden_dims=tuple(config.mlp_hidden),
+            dropout=config.dropout,
+            time_decay_gamma=gamma,
+        )
+    if name == "gru":
+        return GRUClassifier(
+            window_size=window_size,
+            num_features=num_features,
+            hidden_dim=int(getattr(config, "gru_hidden", 64)),
+            dropout=config.dropout,
+        )
     if name == "cnn":
         return CNN1DClassifier(
             window_size=window_size,
@@ -124,7 +220,9 @@ def build_model(name: str, window_size: int, num_features: int, config) -> nn.Mo
             fc_hidden=config.cnn_fc_hidden,
             dropout=config.dropout,
         )
-    raise ValueError(f"Unknown model name: {name}. Expected 'mlp' or 'cnn'.")
+    raise ValueError(
+        f"Unknown model name: {name}. Expected mlp, mlp_decay, gru, or cnn."
+    )
 
 
 def count_parameters(model: nn.Module) -> int:

@@ -89,6 +89,8 @@ class ExperimentConfig:
 
     # 网络结构
     mlp_hidden: tuple[int, ...] = (256, 128, 64)
+    time_decay_gamma: float = 0.95
+    gru_hidden: int = 64
     cnn_channels: tuple[int, ...] = (32, 64)
     cnn_kernel_size: int = 3
     cnn_fc_hidden: int = 64

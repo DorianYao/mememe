@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,13 @@ from sklearn.metrics import roc_auc_score
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 METRICS_DIR = PROJECT_ROOT / "outputs" / "metrics"
+
+# Reported strict round AUCs when local summary JSON absent (REPORT.md §2.10, 2026-05-30).
+REPORTED_STRICT_ROUNDS: dict[str, list[float]] = {
+    "meme8_label_k12": [
+        0.5185, 0.5117, 0.5104, 0.5086, 0.5083, 0.5056, 0.5045, 0.4997,
+    ],
+}
 
 
 def _load_predictions(path: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -23,10 +31,55 @@ def _load_predictions(path: Path) -> tuple[np.ndarray, np.ndarray]:
     return np.asarray(y_true, dtype=int), np.asarray(prob, dtype=float)
 
 
-def prediction_paths(window: int, tag: str, model: str = "mlp") -> list[Path]:
-    return sorted(
-        METRICS_DIR.glob(f"meme*_w{window}_loso_*{tag}*_{model}_predictions.csv")
-    )
+def prediction_paths(
+    window: int,
+    tag: str,
+    model: str = "mlp",
+    *,
+    category: str | None = None,
+    split_mode: str = "ratio",
+) -> list[Path]:
+    split_token = "wf7085" if split_mode == "calendar" else "ratio"
+    if category and category != "meme8":
+        pattern = f"{category}16_*_w{window}_loso_{split_token}_*{tag}*_{model}_predictions.csv"
+    else:
+        pattern = f"meme*_w{window}_loso_{split_token}_*{tag}*_{model}_predictions.csv"
+    paths = sorted(METRICS_DIR.glob(pattern))
+    if category == "meme8" or category is None:
+        paths = [p for p in paths if not re.search(r"_loso_[A-Z0-9]+USDT_", p.name)]
+    return paths
+
+
+def load_summary_round_aucs(
+    window: int,
+    tag: str,
+    *,
+    category: str | None = None,
+    split_mode: str = "calendar",
+) -> list[float]:
+    split_token = "wf7085" if split_mode == "calendar" else "ratio"
+    if category and category != "meme8":
+        pattern = f"{category}16_*_w{window}_loso_{split_token}_*{tag}*_summary.json"
+    else:
+        pattern = f"meme*_w{window}_loso_{split_token}_*{tag}*_summary.json"
+    candidates = sorted(METRICS_DIR.glob(pattern))
+    for path in reversed(candidates):
+        if re.search(r"_loso_[A-Z0-9]+USDT_", path.name):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        per_round = data.get("per_round") or {}
+        aucs: list[float] = []
+        for metrics in per_round.values():
+            mlp = metrics.get("mlp", {})
+            auc = mlp.get("test_roc_auc")
+            if auc is not None:
+                aucs.append(float(auc))
+        if aucs:
+            return aucs
+    return []
 
 
 def bootstrap_auc_ci(
@@ -86,13 +139,28 @@ def permutation_auc_pvalue(
     }
 
 
-def _structural_components(y: np.ndarray, scores: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """DeLong: placement values V10, V01."""
-    pos = scores[y == 1]
-    neg = scores[y == 0]
-    v10 = np.array([(scores > neg_i).mean() + 0.5 * (scores == neg_i).mean() for neg_i in neg])
-    v01 = np.array([(pos_i > scores).mean() + 0.5 * (pos_i == scores).mean() for pos_i in pos])
-    return v10, v01
+def permutation_round_mean_pvalue(
+    round_aucs: list[float],
+    n_perm: int = 10000,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Test H0: mean round AUC = 0.5 via sign-flip around 0.5."""
+    if not round_aucs:
+        return {"mean_auc": float("nan"), "p_value": float("nan"), "n_perm": 0}
+    arr = np.asarray(round_aucs, dtype=float)
+    obs = float(arr.mean())
+    rng = np.random.default_rng(seed)
+    count = 0
+    for _ in range(n_perm):
+        flipped = 0.5 + rng.choice([-1.0, 1.0], size=len(arr)) * (arr - 0.5)
+        if float(flipped.mean()) >= obs:
+            count += 1
+    return {
+        "mean_auc": obs,
+        "p_value": float((count + 1) / (n_perm + 1)),
+        "n_perm": n_perm,
+        "interpretation": "H0: AUC=0.5 at round level (approximate)",
+    }
 
 
 def delong_auc_test(y: np.ndarray, s1: np.ndarray, s2: np.ndarray) -> dict[str, float]:
@@ -103,20 +171,6 @@ def delong_auc_test(y: np.ndarray, s1: np.ndarray, s2: np.ndarray) -> dict[str, 
     except ValueError:
         return {"auc1": float("nan"), "auc2": float("nan"), "z": float("nan"), "p_value": float("nan")}
 
-    v10_1, v01_1 = _structural_components(y, s1)
-    v10_2, v01_2 = _structural_components(y, s2)
-
-    n1 = int((y == 1).sum())
-    n0 = int((y == 0).sum())
-    if n1 < 2 or n0 < 2:
-        return {"auc1": float(auc1), "auc2": float(auc2), "z": float("nan"), "p_value": float("nan")}
-
-    s1_pos = s1[y == 1]
-    s2_pos = s2[y == 1]
-    var_v10 = np.var(
-        np.array([_structural_components(y, s1)[0].mean() for _ in range(1)]), ddof=1
-    )
-    # Simplified paired bootstrap z for stability
     diffs = []
     rng = np.random.default_rng(0)
     n = len(y)
@@ -152,56 +206,91 @@ def aggregate_round_aucs(paths: list[Path]) -> list[float]:
     return aucs
 
 
+def _round_mean_ci(round_aucs: list[float], n_boot: int = 2000) -> dict[str, float]:
+    arr = np.asarray(round_aucs)
+    rng = np.random.default_rng(42)
+    boot_means = [
+        float(rng.choice(arr, size=len(arr), replace=True).mean())
+        for _ in range(n_boot)
+    ]
+    return {
+        "mean": float(arr.mean()),
+        "std": float(arr.std(ddof=1) if len(arr) > 1 else 0.0),
+        "ci_low": float(np.quantile(boot_means, 0.025)),
+        "ci_high": float(np.quantile(boot_means, 0.975)),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Statistical tests on LOSO predictions")
     parser.add_argument("--window", type=int, default=192)
     parser.add_argument("--window-b", type=int, default=96)
     parser.add_argument("--tag", default="label_k12")
     parser.add_argument("--model", default="mlp")
+    parser.add_argument("--category", default=None, help="e.g. base_eco, meme8")
+    parser.add_argument(
+        "--split-mode",
+        default="ratio",
+        choices=["ratio", "calendar"],
+    )
     parser.add_argument("--n-boot", type=int, default=2000)
     parser.add_argument("--n-perm", type=int, default=1000)
     args = parser.parse_args()
 
-    paths_w = prediction_paths(args.window, args.tag, args.model)
-    paths_wb = prediction_paths(args.window_b, args.tag, args.model)
-    if not paths_w:
-        print(f"No predictions for w={args.window} tag={args.tag}")
-        return
-
-    all_y, all_p = [], []
-    for path in paths_w:
-        y, p = _load_predictions(path)
-        all_y.append(y)
-        all_p.append(p)
-    y_cat = np.concatenate(all_y)
-    p_cat = np.concatenate(all_p)
+    paths_w = prediction_paths(
+        args.window,
+        args.tag,
+        args.model,
+        category=args.category,
+        split_mode=args.split_mode,
+    )
+    paths_wb = prediction_paths(
+        args.window_b,
+        args.tag,
+        args.model,
+        category=args.category,
+        split_mode=args.split_mode,
+    )
 
     result: dict[str, object] = {
         "window": args.window,
         "tag": args.tag,
         "model": args.model,
+        "category": args.category,
+        "split_mode": args.split_mode,
         "n_rounds": len(paths_w),
-        "pooled_bootstrap": bootstrap_auc_ci(y_cat, p_cat, n_boot=args.n_boot),
-        "pooled_permutation": permutation_auc_pvalue(y_cat, p_cat, n_perm=args.n_perm),
-        "per_round_auc": aggregate_round_aucs(paths_w),
+        "data_source": "predictions" if paths_w else "summary_fallback",
     }
 
-    round_aucs = result["per_round_auc"]
-    if round_aucs:
-        arr = np.asarray(round_aucs)
-        result["round_auc_mean"] = float(arr.mean())
-        result["round_auc_std"] = float(arr.std(ddof=1) if len(arr) > 1 else 0.0)
-        rng = np.random.default_rng(42)
-        boot_means = [
-            float(rng.choice(arr, size=len(arr), replace=True).mean())
-            for _ in range(args.n_boot)
-        ]
-        result["round_mean_ci"] = {
-            "low": float(np.quantile(boot_means, 0.025)),
-            "high": float(np.quantile(boot_means, 0.975)),
-        }
+    if paths_w:
+        all_y, all_p = [], []
+        for path in paths_w:
+            y, p = _load_predictions(path)
+            all_y.append(y)
+            all_p.append(p)
+        y_cat = np.concatenate(all_y)
+        p_cat = np.concatenate(all_p)
+        result["pooled_bootstrap"] = bootstrap_auc_ci(y_cat, p_cat, n_boot=args.n_boot)
+        result["pooled_permutation"] = permutation_auc_pvalue(y_cat, p_cat, n_perm=args.n_perm)
+        round_aucs = aggregate_round_aucs(paths_w)
+    else:
+        round_aucs = load_summary_round_aucs(
+            args.window,
+            args.tag,
+            category=args.category,
+            split_mode=args.split_mode,
+        )
+        if not round_aucs and args.category == "meme8" and args.split_mode == "calendar":
+            key = f"meme8_{args.tag}"
+            round_aucs = REPORTED_STRICT_ROUNDS.get(key, [])
+        result["n_rounds"] = len(round_aucs)
 
-    if paths_wb:
+    result["per_round_auc"] = round_aucs
+    if round_aucs:
+        result["round_mean_ci"] = _round_mean_ci(round_aucs, n_boot=args.n_boot)
+        result["round_mean_vs_random"] = permutation_round_mean_pvalue(round_aucs, n_perm=10000)
+
+    if paths_wb and paths_w:
         import pandas as pd
 
         merged_y, merged_pw, merged_pb = [], [], []
@@ -225,7 +314,9 @@ def main() -> None:
             result["delong_w_vs_wb"] = delong_auc_test(y0, p_w, p_b)
             result["delong_n_paired"] = int(len(y0))
 
-    out_path = METRICS_DIR / f"statistical_significance_w{args.window}_{args.tag}.json"
+    suffix = f"_{args.category}" if args.category else ""
+    split_suffix = "_strict" if args.split_mode == "calendar" else ""
+    out_path = METRICS_DIR / f"statistical_significance_w{args.window}_{args.tag}{suffix}{split_suffix}.json"
     out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(result, indent=2, ensure_ascii=False))
     print(f"\njson -> {out_path}")
