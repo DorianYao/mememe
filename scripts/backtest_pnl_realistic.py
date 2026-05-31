@@ -74,27 +74,15 @@ def _prediction_paths(
     model: str = "mlp",
     category: str | None = None,
 ) -> list[Path]:
-    from src.categories import metrics_universe_glob
+    from src.metrics_paths import list_test_prediction_paths
 
-    prefix = metrics_universe_glob(category)
-    return sorted(
-        METRICS_DIR.glob(f"{prefix}_w{window}_loso_*{tag}*_{model}_predictions.csv")
-    )
-
-
-def _symbol_from_path(path: Path) -> str:
-    parts = path.stem.split("_loso_")
-    if len(parts) < 2:
-        return path.stem
-    tail = parts[1]
-    for marker in ("_label_k", "_mlp_predictions"):
-        if marker in tail:
-            return tail.split(marker)[0]
-    return tail
+    return list_test_prediction_paths(METRICS_DIR, window, tag, model, category)
 
 
 def _load_predictions(path: Path) -> list[tuple[pd.Timestamp, str, float]]:
-    symbol = _symbol_from_path(path)
+    from src.metrics_paths import symbol_from_predictions_path
+
+    symbol = symbol_from_predictions_path(path)
     rows: list[tuple[pd.Timestamp, str, float]] = []
     with path.open("r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
@@ -451,7 +439,9 @@ def main() -> None:
             matched, _ = load_matched_rows(config, [path], entry_lag=cfg.entry_lag)
             if matched:
                 row = backtest_tau(matched, tau, cfg)
-                row["symbol"] = _symbol_from_path(path)
+                from src.metrics_paths import symbol_from_predictions_path
+
+                row["symbol"] = symbol_from_predictions_path(path)
                 row["tau_used"] = tau
                 per_round.append(row)
 

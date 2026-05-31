@@ -1,5 +1,6 @@
 .env
 .venv/
+.tar
 __pycache__/
 *.py[cod]
 data/raw/

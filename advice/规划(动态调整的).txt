@@ -1,6 +1,6 @@
 # 研究规划（动态调整）
 
-> 最后更新：2026-05-29  
+> 最后更新：2026-05-31  
 > 依据：[REPORT_CATEGORY.md](../REPORT_CATEGORY.md)、[REPORT.md](../REPORT.md)
 
 ---
@@ -9,7 +9,10 @@
 
 - **五类 Phase A**（ratio-LOSO，各 5 组 k×w）已全部完成。
 - **base_eco Phase B** 扩展扫描（26 combo）已完成；五类中 **base_eco 开发协议 AUC 最高**。
-- **严格 calendar 验证**尚未开始；meme8 上同类实验 AUC ≈ 0.51（接近随机），分域结果待复测。
+- **严格 calendar + 外部 holdout** 已完成：base_eco k=1.5,w=224 严格 AUC **0.5114**；NEIRO/PNUT/TURBO holdout **0.51–0.52** → 与 meme8 一致，**不通过**外推标准。
+- **四组 PnL / τ**：四组 ratio 预测 16/16 + `backtest_realistic_w*.json` / `confidence_threshold_w*.json` 已完成（见 `REPORT_CATEGORY.md` §8.3）。
+- **泄漏审计**：`leakage_audit_w224_k15.json` → PASS。
+- **决策**：触发 §5 退出条件 → 转向 `备用研究方向建议.md`；暂停 GeminiAdvice / 其余四类 Phase B。
 
 ---
 

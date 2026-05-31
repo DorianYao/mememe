@@ -47,26 +47,15 @@ class TradeRow:
 
 
 def _prediction_paths(window: int, tag: str, category: str | None = None) -> list[Path]:
-    from src.categories import metrics_universe_glob
+    from src.metrics_paths import list_test_prediction_paths
 
-    prefix = metrics_universe_glob(category)
-    pattern = f"{prefix}_w{window}_loso_*_{tag}_mlp_predictions.csv"
-    return sorted(METRICS_DIR.glob(pattern))
-
-
-def _symbol_from_path(path: Path) -> str:
-    parts = path.stem.split("_loso_")
-    if len(parts) < 2:
-        return path.stem
-    tail = parts[1]
-    for marker in ("_label_k", "_mlp_predictions"):
-        if marker in tail:
-            return tail.split(marker)[0]
-    return tail
+    return list_test_prediction_paths(METRICS_DIR, window, tag, "mlp", category)
 
 
 def _load_predictions(path: Path) -> list[TradeRow]:
-    symbol = _symbol_from_path(path)
+    from src.metrics_paths import symbol_from_predictions_path
+
+    symbol = symbol_from_predictions_path(path)
     rows: list[TradeRow] = []
     with path.open("r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)

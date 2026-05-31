@@ -3,10 +3,10 @@
 **项目**：15 分钟 K 线下一根涨跌二分类（MLP）  
 **前置报告**：[REPORT.md](REPORT.md)（legacy **meme8** × 8 币、双协议主结论、严格 calendar AUC ≈ 0.51）  
 **本报告范围**：2026-05-28 起的 **五大研究类 × 16 币** 独立 LOSO、类内 $k \times w$ 调参  
-**报告更新**：2026-05-29（**base_eco Phase B 扩展扫描已完成**，数据见 `outputs/metricsB/`）  
+**报告更新**：2026-05-31（**规划验证与四组 PnL 已全部完成**，见 §8）  
 
-> 完整 JSON / 日志见 `outputs/metricsB/metrics/`（最新）；历史 Phase A 亦在 `outputs/metrics/`。  
-> **与 REPORT.md 的关系**：§1–§18 的 meme8 主结论（尤其严格协议 ≈ 随机）**不变**；本报告记录 **分大类后的开发协议超参探索**，尚未对任何类别跑严格 calendar 验证。
+> 主产物：`outputs/metrics/`（严格验证、holdout、ratio 复跑、PnL JSON）；Phase A/B 扫描亦在 `outputs/metricsB/metrics/`。  
+> **与 REPORT.md 的关系**：meme8 严格协议 ≈ 随机 **不变**；base_eco 严格复测 **同样 ≈ 0.51**，开发协议 AUC 0.68–0.75 **不可外推**。
 
 ---
 
@@ -20,7 +20,8 @@
 | **五类 Phase A** 基线 $k \times w$ 精扫（各 5 组） | ✅ | ratio-LOSO，16 held-out / 组 |
 | **base_eco Phase B** 扩展峰值搜索（$k \to 2.5$, $w \to 288$） | ✅ **已完成** | 26 combo，16/16 LOSO 全完成 |
 | bluechip / midcap / solana_fast / micro_cap Phase B | ⏸ 暂停 | Phase A 已定各类 interim 最优，扩展扫留待 base_eco 严格验证后 |
-| 五大类 strict calendar（wf7085） | ⏳ **下一步** | 冻结 base_eco **k=1.5, w=224** 后执行 |
+| base_eco 规划验证（严格 + holdout + 四组 PnL） | ✅ | 严格/holdout + 四组 ratio 预测与 PnL/τ 扫描（16/16） |
+| 五大类其余类 strict calendar | ⏸ | 按退出条件暂停 |
 
 **Phase B 结论（2026-05-29）**：
 
@@ -85,7 +86,7 @@
 | --- | --- | --- | --- |
 | **A 基线精扫** | ratio（开发） | **5 组**：$k \in \{1.0,1.2\}$，$w \in \{96,128,192\}$ 剪枝 | `scripts/run_category_kw_scan.sh` |
 | **B 扩展峰值** | ratio | **26 组**：$k \in \{1.0,1.2,1.5,1.8,2.0,2.5\}$，$w \in \{192,208,\ldots,288\}$ 剪枝 | `scripts/run_category_kw_extended.sh` |
-| **C 严格验证** | calendar wf7085 | 冻结 $(k,w)$ 后单点复跑 | 待 B 完成后 |
+| **C 严格验证** | calendar wf7085 | 冻结 $(k,w)$ 后单点复跑 | base_eco **已完成**（§8） |
 
 矩阵定义：`scripts/category_kw_matrix.py`
 
@@ -294,23 +295,85 @@ python3 scripts/category_kw_extended_compare.py --category base_eco --plot
 
 ## 6. 与 REPORT.md 主结论的对齐说明
 
-| 主题 | REPORT.md（meme8） | 本报告（base_eco） |
+| 主题 | REPORT.md（meme8） | 本报告（base_eco，2026-05-31） |
 | --- | --- | --- |
-| **严格 calendar 主结论** | AUC ≈ **0.510** | **尚未复测** |
-| **开发协议探索** | AUC ≈ **0.743** @ k=1.2,w=192 | AUC ≈ **0.738** @ k=1.5,w=224（可信峰）；Phase A 0.715 @ k=1.2,w=192 |
-| 泄漏审计 | PASS | 未对新宇宙重跑 audit |
-| PnL / τ 扫描 | 开发协议 +43% 等 | 未做 |
+| **严格 calendar** | AUC ≈ **0.510** | **0.5114 ± 0.0178**（k=1.5,w=224）；对照 **0.5052 ± 0.0152**（k=1.2,w=208） |
+| **外部 holdout** | TURBO 等 ≈ 0.51 | NEIRO **0.511** / PNUT **0.515** / TURBO **0.518**（17 训 + 1 测） |
+| **开发 ratio-LOSO** | AUC ≈ **0.743** | 四组 **0.703–0.806**（见 §8）；相对严格 **−20～−25 pp** |
+| 泄漏审计 | PASS | **PASS**（`leakage_audit_w224_k15.json`，`--skip-poison`） |
+| PnL（realistic, τ=0.70） | 开发协议有正收益 | 四组均为正（见 §8.3）；**仅开发协议，非严格主指标** |
 
-**重要**：base_eco 0.738 **不能**直接替代 REPORT 的严格外推结论；下一步应对 base_eco 冻结 **(k=1.5, w=224)** 跑 `--split-mode calendar`，再与 meme8 的 0.510 对照。高 k（≥1.8）开发 AUC 虽可达 0.81，但样本量崩塌，预期严格协议下同样不可外推。
+**结论**：严格 + 外部 holdout 与 meme8 一致，**无法声称跨域可交易 α**；开发协议 PnL 为正 **不满足** [规划(动态调整的).txt](advice/规划(动态调整的).txt) 三重通过标准 → **转向** [备用研究方向建议.md](advice/备用研究方向建议.md)。
 
 ---
 
-## 7. 下一步
+## 7. 下一步（规划退出后）
 
-1. **冻结 base_eco (k=1.5, w=224)** → 严格 calendar LOSO 16 轮 + leakage audit（可选）。
-2. **对照跑 k=1.2, w=208**（样本更充裕的次优）→ 验证严格协议下是否同样接近随机。
-3. **视 base_eco 严格验证结果**，决定是否对其余四类复制 Phase B。
-4. **跨类对比**：`scripts/category_loso_compare.py` → `categories_loso_comparison.json`。
+1. ~~base_eco 严格 calendar + holdout~~ → **已完成，未通过**。
+2. ~~四组配置 PnL / τ~~ → **已完成**（`scripts/run_pnl_finish.sh`；产物见 §8.3）。
+3. **暂停** GeminiAdvice 实战系统与其余四类 Phase B（除非改研究问题）。
+4. 磁盘维护：combo 完成后执行 `python3 scripts/cleanup_disk.py --npz-completed`（本次释放 **~120GB** `.npz`）。
+
+---
+
+## 8. 规划验证结果（2026-05-30/31，已完成）
+
+依据 [advice/规划(动态调整的).txt](advice/规划(动态调整的).txt)；日志 `outputs/metrics/base_eco_validation_resume.log`、`base_eco_pnl.log`。
+
+### 8.1 双协议 AUC（base_eco，MLP，16/16 LOSO）
+
+| 配置 | split | mean AUC | std | test_n（ratio） | 严格 Δ（vs 同 k 严格或 0.51） |
+| --- | --- | ---: | ---: | ---: | ---: |
+| **k=1.5, w=224** | calendar wf7085 | **0.5114** | 0.0178 | — | — |
+| k=1.2, w=208 | calendar wf7085 | 0.5052 | 0.0152 | — | — |
+| **k=1.5, w=224** | ratio（开发） | 0.7326 | 0.0443 | 125,839 | **−22.1 pp** |
+| k=1.2, w=208 | ratio | 0.7522 | 0.0659 | 201,533 | **−24.7 pp** |
+| k=1.2, w=192 | ratio | 0.7030 | 0.0784 | 202,152 | −19.8 pp |
+| k=2.5, w=240 | ratio | 0.8064 | 0.0475 | **28,947** | −29.5 pp † |
+
+† w=240 的 test_n **仅 29k**（< 80k 可信阈值），AUC 0.81 仍为 **低样本伪高分**；与 Phase B 扫描结论一致。
+
+**协议落差**：开发 − 严格 ≈ **20–25 pp**（可信配置），与 meme8 先例一致；`leakage_audit_w224_k15.json` → **PASS**（`--skip-poison`）。
+
+### 8.2 外部 holdout（k=1.5, w=224, calendar）
+
+| 测试币 | test AUC |
+| --- | ---: |
+| NEIROUSDT | 0.5110 |
+| PNUTUSDT | 0.5153 |
+| TURBOUSDT | 0.5177 |
+
+### 8.3 开发协议 PnL（realistic，`backtest_realistic_w*.json`，τ=0.70）
+
+| k | w | tag | total_return_net † | Sharpe_daily | n_trades | 预测轮次 |
+| ---: | ---: | --- | ---: | ---: | ---: | ---: |
+| 1.5 | 224 | label_k15 | 35.45 | 8.41 | 32,972 | 16/16 |
+| 1.2 | 208 | label_k12 | 48.45 | 9.59 | 59,648 | 16/16 |
+| 1.2 | 192 | label_k12 | 43.00 | 10.43 | 58,187 | 16/16 |
+| 2.5 | 240 | label_k25 | 28.19 | 9.45 | 8,542 | 16/16 |
+
+† 与 REPORT §13 同字段：`final_equity ≈ 1 + total_return_net`（固定名义本金、无复利）。  
+配套：`confidence_threshold_w{window}_{tag}.json`、`backtest_pnl_w*.json`（idealized）。
+
+**解读**：四组开发协议 PnL 均为正，但 **严格 + holdout AUC ≈ 0.51** → **不满足**规划「通过标准」；高 k/w=240 收益样本更少（test_n≈29k），不可作为冻结配置。
+
+### 8.4 规划四组对照（开发 vs 严格）
+
+| 配置 | ratio AUC | 严格 AUC | realistic PnL (τ=0.7) | 判定 |
+| --- | ---: | ---: | ---: | --- |
+| **k=1.5, w=224**（冻结峰） | 0.7326 | 0.5114 | +35.45 | 严格未过；PnL 不可外推 |
+| k=1.2, w=208 | 0.7522 | 0.5052 | +48.45 | 同上 |
+| k=1.2, w=192 | 0.7030 | — | +43.00 | Phase A 基准，已被 w224/w208 超越 |
+| k=2.5, w=240 | 0.8064 | — | +28.19 | ❌ test_n<80k，仅对照 |
+
+### 8.5 复现命令
+
+```bash
+bash scripts/run_base_eco_validation_resume.sh
+bash scripts/run_base_eco_pnl.sh          # 或收尾：bash scripts/run_pnl_finish.sh
+python3 scripts/leakage_audit.py --category base_eco --window 224 --label-k 1.5 --skip-poison
+python3 scripts/cleanup_disk.py --npz-completed
+```
 
 ---
 
@@ -325,18 +388,18 @@ python3 scripts/category_kw_extended_compare.py --category base_eco --plot
 | 基线热力图 | `outputs/figures/category_kw_heatmap_ratio.png` |
 | 扩展热力图 | `outputs/figures/base_eco_kw_extended_heatmap_ratio.png` |
 | 类别币单 | `config/categories.yaml` |
+| 严格验证汇总 | `outputs/metrics/base_eco16_15m_w224_loso_wf7085_label_k15_summary.json` 等 |
+| 四组 PnL / τ | `outputs/metrics/backtest_realistic_w*.json`、`confidence_threshold_w*.json` |
+| 泄漏审计 | `outputs/metrics/leakage_audit_w224_k15.json` |
+| 验证日志 | `outputs/metrics/base_eco_validation_resume.log`、`base_eco_pnl.log` |
 | 远程操作手册 | [docs/remote_workflow.md](docs/remote_workflow.md) |
 
-## 附录 B：严格验证命令（待执行）
+## 附录 B：严格验证（已执行，2026-05-30）
 
 ```bash
-# 可信峰值 k=1.5, w=224
-python3 main.py --mode loso --category base_eco --stage all --model mlp \
-  --label-k 1.5 --window-size 224 --split-mode calendar --ablation-tag label_k15
-
-# 备选 k=1.2, w=208
-python3 main.py --mode loso --category base_eco --stage all --model mlp \
-  --label-k 1.2 --window-size 208 --split-mode calendar --ablation-tag label_k12
+bash scripts/run_base_eco_validation_resume.sh   # P0/P1 严格 + holdout + ratio 四组
+python3 scripts/leakage_audit.py --category base_eco --window 224 --label-k 1.5 --skip-poison
+bash scripts/run_pnl_finish.sh                   # w192/w240 预测 + PnL 扫描（tmux）
 ```
 
 ## 附录 C：远程复现命令（base_eco Phase B，已完成）
@@ -371,4 +434,4 @@ LOSO_JOBS=8 NPZ_JOBS=12 BATCH_SIZE=65536 bash scripts/run_category_kw_extended.s
 
 ---
 
-*数值以 `outputs/metricsB/metrics/*_summary.json` 为准；本报告随 base_eco 严格 calendar 验证持续更新。*
+*分类扫描数值以 `outputs/metricsB/metrics/*_summary.json` 为准；规划验证以 `outputs/metrics/*_summary.json` 为准。*

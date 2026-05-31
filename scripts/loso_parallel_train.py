@@ -49,14 +49,16 @@ def _train_one(
     held: str,
     env: dict[str, str],
 ) -> tuple[str, int]:
+    stage = env.get("LOSO_PARALLEL_STAGE", "train")
     cmd = [
         *base_cmd,
         "--held-out",
         held,
         "--stage",
-        "train",
-        "--skip-existing",
+        stage,
     ]
+    if env.get("LOSO_FORCE_REEVAL") != "1" and stage == "train":
+        cmd.append("--skip-existing")
     print(f"[parallel] train held-out={held}", flush=True)
     proc = subprocess.run(cmd, cwd=ROOT, env=env)
     return held, proc.returncode
