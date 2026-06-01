@@ -1,6 +1,7 @@
 .env
 .venv/
-.tar
+*.tar
+*.tgz
 __pycache__/
 *.py[cod]
 data/raw/
@@ -13,5 +14,6 @@ outputs/*.gz
 outputs/**/*.tgz
 outputs/
 mememe_metrics.tgz
-#advice/
+advice/
+paper/
 config/categories.resolved.yaml
